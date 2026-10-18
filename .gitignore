@@ -1,0 +1,39 @@
+# Build output
+/target/
+**/bin/
+**/obj/
+/dist/
+build/
+build-*/
+*.pdb
+
+# Dependency trees and caches
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# Editors and OS
+.vs/
+.idea/
+.vscode/
+*.user
+Thumbs.db
+.DS_Store
+
+# Local and private material: never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.snk
+*.rvt
+*.rfa
+*.rte
+*.rft
+*.dmp
+*.log
+research-private/

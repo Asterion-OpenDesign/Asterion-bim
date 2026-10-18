@@ -1,0 +1,77 @@
+name: ci
+
+# Least privilege: read-only token, no secrets, no pull_request_target, no artifact publication.
+# Third-party actions are pinned to full commit SHAs (the tag each resolves to is in the comment).
+# NOT YET EXECUTED on GitHub.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provenance:
+    name: provenance gate and its tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: python3 -W error -m unittest tests.test_provenance_gate
+      - run: python3 tools/provenance_gate.py
+
+  secrets:
+    name: secret scan (gitleaks, checksum-verified)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run gitleaks
+        env:
+          VERSION: "8.30.1"
+          SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          set -euo pipefail
+          f="gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${f}"
+          echo "${SHA256}  ${f}" | sha256sum -c -
+          tar -xzf "${f}" gitleaks
+          ./gitleaks git . --redact=100 --no-banner
+
+  rust:
+    name: build, test and supply-chain checks (runs once a Cargo workspace exists)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build and test
+        if: ${{ hashFiles('Cargo.toml') != '' }}
+        run: |
+          cargo build --workspace --locked
+          cargo test --workspace --locked
+      - name: cargo-deny (checksum-verified release binary)
+        if: ${{ hashFiles('Cargo.toml') != '' }}
+        env:
+          DENY_VERSION: "0.20.2"
+        run: |
+          set -euo pipefail
+          base="https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}"
+          file="cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSLO "${base}/${file}"
+          curl -fsSLO "${base}/${file}.sha256"
+          echo "$(cut -d' ' -f1 "${file}.sha256")  ${file}" | sha256sum -c -
+          tar -xzf "${file}" --strip-components=1
+          ./cargo-deny check licenses bans sources advisories

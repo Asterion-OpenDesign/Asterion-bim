@@ -1,0 +1,21 @@
+ASTERION BIM
+Copyright 2026 the ASTERION authors
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this software except in compliance with the License. You may obtain a copy of
+the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Trademarks
+----------
+"Autodesk" and "Revit" are registered trademarks of Autodesk, Inc. ASTERION is
+not affiliated with, endorsed by, or sponsored by Autodesk. References to these
+names identify the products and file formats with which interoperability is a
+goal; they imply no certification and no completeness of compatibility.
+
+Third-party components
+----------------------
+This repository currently contains no third-party source code or binaries.
+A complete THIRD_PARTY_NOTICES file, generated from the dependency lock files,
+accompanies any release that bundles or links third-party components.

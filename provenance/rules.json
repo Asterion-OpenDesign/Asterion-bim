@@ -1,0 +1,20 @@
+{
+  "max_file_bytes": 5000000,
+  "forbidden_dirs": ["research", "research-private", "dirty-room", "dirty_room", "scratch", "decompiled", "ghidra", ".claude", ".obsidian"],
+  "forbidden_extensions": [".rvt", ".rfa", ".rte", ".rft", ".dll", ".exe", ".msi", ".pdb", ".dmp", ".so", ".dylib", ".gpr", ".rpt", ".idb", ".i64", ".bndb", ".snk", ".pfx", ".p12", ".pem", ".key"],
+  "private_allow_paths": [],
+  "text_rules": [
+    {"name": "decompiler-routine-name", "regex": "\\bFUN_[0-9a-fA-F]{6,}\\b"},
+    {"name": "native-address", "regex": "\\b0x1[0-9a-fA-F]{8}(?![0-9a-fA-F_])"},
+    {"name": "evidence-id", "regex": "\\bev_[0-9a-f]{12,}\\b"},
+    {"name": "dll-name-mention", "regex": "\\b[A-Za-z0-9_]{3,}\\.(dll|DLL)\\b"},
+    {"name": "decompiler-vocabulary", "regex": "(?i)\\b(ghidra|hopper disassembler|ida pro|decompil\\w*|disassembl\\w*|pseudo-?code|dirty[- ]room|clean[- ]room ledger)\\b",
+      "allow_paths": ["docs/PROVENANCE_POLICY.md", "CONTRIBUTING.md", "README.md", "tools/provenance_gate.py", "provenance/rules.json", "tests/test_provenance_gate.py", "docs/specs/TEMPLATE.md", "SECURITY.md"]},
+    {"name": "internal-method-underscore", "regex": "`[a-z][A-Za-z0-9]*[a-z0-9]_`"},
+    {"name": "vendor-class-method", "regex": "\\b(?:V|S|G|A|DB)[A-Z][A-Za-z0-9]+::[a-zA-Z_][A-Za-z0-9_]*\\b"},
+    {"name": "local-machine-path", "regex": "(?i)\\b[A-Z]:[\\\\/]+(Users|PROYECTS|DevTools|Projects)\\b|/home/[a-z][a-z0-9_-]+/|/Users/[A-Za-z][A-Za-z0-9_-]+/"},
+    {"name": "personal-email", "regex": "(?i)\\b[a-z0-9._%+-]+@(gmail|hotmail|outlook|yahoo|icloud|proton(mail)?)\\.(com|me)\\b"},
+    {"name": "private-key", "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----"},
+    {"name": "token-like", "regex": "\\b(gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{32,}|github_pat_[A-Za-z0-9_]{40,})\\b"}
+  ]
+}
