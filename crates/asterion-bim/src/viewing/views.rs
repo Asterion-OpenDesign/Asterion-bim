@@ -627,7 +627,7 @@ fn classify(
         return ViewedElement { id, appearance: Appearance::Cut, footprint, z_min, z_max, view_z_min, view_z_max };
     }
     // This replaces the earlier ASSUMED "in the primary range = projection", which drew every wall wholly above the cut
-    // plane of the story below it (the Snowdon L2 plan drew the L3 solar walls of the block above; the reference's L2 does
+    // plane of the story below it (a sample project's L2 plan drew the L3 solar walls of the block above; the reference's L2 does
     // not: section 4, live capture). UNKNOWN (Spec V-02): what the helper collapses 5 to, and the per-type draw callbacks
     // of conditions 3, 5 and 2;.
     if view.kind == ViewKind::FloorPlan && cut.is_some() {

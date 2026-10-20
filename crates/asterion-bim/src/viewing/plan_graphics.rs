@@ -242,7 +242,7 @@ pub fn plan_primitives(model: &BimModel, view: &View, st: &ViewState) -> Vec<Pri
 /// region of one group can never touch a region of another, so `union_all` would only keep them apart.
 /// Each group keeps its regions in their input order, and the groups' results are ordered the way
 /// `union_all` orders its output, so the result is the same; what it saves is the booleans between a
-/// grown region and the regions of other groups that its box reaches (Snowdon's plans).
+/// grown region and the regions of other groups that its box reaches (the plans of a large sample project).
 fn union_by_groups(regions: &[Region], tol: &Tolerances) -> asterion_geom::GeomResult<Vec<Region>> {
     let n = regions.len();
     let pad = 2.0 * tol.vertex + 1e-9;
