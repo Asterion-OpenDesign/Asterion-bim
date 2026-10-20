@@ -61,7 +61,7 @@ Captured from a build of development-tree commit `3d71d951` on 2026-10-20 with t
 | Floors, ceilings, footprint roofs, sloped floors | Works for the common cases |
 | Rooms, levels, grids | Works |
 | Columns, curtain walls | Works; not yet counted as validated against the reference |
-| Views: plan, 3D, section, elevation, schedule, sheet | Plan, 3D, schedule and views made in ASTERION work; sheets are basic |
+| Views: plan, 3D, section, elevation, schedule, sheet | Plan, 3D, section, elevation, callout and schedule views work (selection and Properties in every view type); sheets are basic |
 | Annotation: aligned and linear dimension, tag, text | Basic |
 | Stairs and railings | Placed with correct counts; **no 3D body yet**, nothing in section or 3D |
 | Editing | Move, copy, rotate, mirror, offset, scale, array, split, trim / extend, join geometry, wall joins, pin, delete, paste, match type, undo / redo work. Align, cut, split with gap, repeat, displace and similar are disabled with the reason |
@@ -86,29 +86,27 @@ How it is measured: scenarios were run in a licensed installation of the referen
 interface, and their results recorded. The same scenarios are replayed in the ASTERION engine and compared **field by field**.
 This is a comparison against *observations*, run by the project; it is not endorsed, audited or certified by anyone else.
 
-| Measure (summary generated 2026-10-20, commit `ec0a4389`) | Value |
+| Measure (summary generated 2026-10-20, development-tree commit `b51a55bc`) | Value |
 |---|---:|
-| Recorded scenario rounds | 55 (51 compared; 4 not yet run in the reference product) |
-| Fields compared | 917,139 |
-| Fields equal | **914,295** (99.69 % of those compared) |
-| Fields different | **2,633** |
+| Recorded scenario rounds | 55 |
+| Fields compared | 921,013 |
+| Fields equal | **918,405** (99.72 % of those compared) |
+| Fields different | **2,608** |
 | Fields missing on one side | **211** |
-| Fields recorded but **not compared** | **1,138,240** |
-| Rounds with zero differences | 25 of 51 |
+| Fields recorded but **not compared** | **1,134,320** |
 
-Read the last two rows as seriously as the first. "99.69 %" is of the fields that are compared, and more than a million
+Read the last two rows as seriously as the first. "99.72 %" is of the fields that are compared, and more than a million
 recorded fields are not compared at all: mostly element kinds ASTERION does not model yet, parameter dumps, and part of
 the solid vertex data. They do **not** count as parity. Of the compared vertex data, 4,853 solid vertex sets (167,133
-coordinates) are checked and 702 of those sets differ. The largest remaining differences are arc walls (1,188 fields in one
-round) and wall joins at other angles (643 fields in another). Later commits already close more of them than this summary
-shows; it will be regenerated.
+coordinates) are checked and 702 of those sets differ. The largest remaining groups of differences are arc walls and wall joins at other
+angles. The summary is regenerated on every build.
 
 ### Application self-tests
 
 | Measure | Result |
 |---|---|
 | Milestone verification, commit `02df9b7c`, 2026-10-20 02:58 | **ALL PASS**: 641 self-tests PASS, 0 FAIL; live performance 7 PASS; drawing-experience targets 20 of 20 met |
-| Windows installer test, commit `13a7ccee`, 2026-10-20 02:48 | **PASS**: silent install, 638 + 33 self-tests run from the installed copy (0 FAIL), snapshot, silent uninstall leaves nothing behind |
+| Windows installer test, development-tree commit `b51a55bc`, 2026-10-20 | silent install **OK**; 695 edit self-tests and 39 demo steps run from the installed copy (**0 FAIL**); snapshot **OK**; uninstall removes the install folder. On the one test machine, which had earlier test builds installed, the Start-menu shortcut stayed after uninstall |
 | "Build a house from scratch" demo script, part A, run 2026-10-20 on the build used for the screenshots (`3d71d951`) | 26 steps, 26 PASS, 0 FAIL; 28 committing clicks, median 2.5 ms, 90th percentile 5.2 ms, worst 10.5 ms (press to end of redraw) |
 
 The self-tests drive the real window and read every result back from the engine. They show that the application does what
@@ -117,7 +115,7 @@ addresses that, and it is incomplete.
 
 ### Commands and plan
 
-| Measure (regenerated 2026-10-20 at commit `2f9cd53f`) | Value |
+| Measure (regenerated 2026-10-20 at development-tree commit `b51a55bc`) | Value |
 |---|---:|
 | Commands drawn on the ribbon (architecture, modify, annotate, view) | 154 |
 | ... wired to the engine and working | 83 |
@@ -137,7 +135,7 @@ This list is deliberately long. If something you need is not here, assume it is 
 - **Many ribbon commands are disabled**, each with its reason in the tooltip: all remaining annotation kinds
   (spot elevations, detail items, legends, scope boxes, matchlines, area plans, ramps, model text and more), most of the
   View tab beyond plan / 3D / section / elevation / schedule / sheet, loadable-family authoring, and a long tail of flyout commands.
-- **Selection is one element at a time**: no window or crossing selection, no add-to-selection, no filters yet.
+- **Selection and properties:** click, hover pre-selection, Tab cycling, add / remove and window / crossing selection work in plan, section, elevation, callout and 3D views, and the Properties palette follows the selection. 3D window / crossing selection ignores occlusion; railing types have no Type Properties page; viewports on a sheet cannot be dragged yet; there are no selection filters.
 - **No MEP, structure, steel, precast, analysis or collaboration.** Architecture only.
 - **One reference version only.** No other version of any product is a target.
 - **Windows only** (tested on Windows 11, x64, with a Vulkan-capable GPU). No Linux, no macOS.
@@ -203,9 +201,8 @@ Design rules that the project holds itself to:
 
 **Requirements:** Windows 11 x64 and a Vulkan-capable GPU. The installer is about 22 MB; installed size has not been measured. Tested on one machine configuration so far (one discrete NVIDIA GPU), so other hardware is unknown territory.
 
-1. **Download.** Alpha builds are attached to this repository's **Releases** page as `AsterionBim-<version>-setup.exe`
-   (about 22 MB). If the Releases page is empty, there is nothing to download yet: the first alpha build has not been published
-   at the time of writing.
+1. **Download.** The first alpha build, `AsterionBim-0.1.0-setup.exe` (about 22 MB), is on this repository's
+   [Releases page](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/tag/v0.1.0-alpha.1) (marked pre-release).
 2. **Check the file.** The release notes list its SHA-256. In PowerShell: `Get-FileHash .\AsterionBim-0.1.0-setup.exe -Algorithm SHA256`.
 3. **Install.** The installer is unsigned, so SmartScreen will ask for confirmation. It installs per machine into
    `C:\Program Files\ASTERION` by default; `MSIINSTALLPERUSER=1` installs for the current user without elevation.
@@ -283,8 +280,8 @@ may be reused to describe ASTERION, with the name "ASTERION" subject to the trad
 y resultados se miden contra una referencia fija (una sola version de una aplicacion BIM comercial) y se demuestran con mediciones. **Es una demo ALPHA, no un
 producto final**: el proyecto se abre poco a poco al publico para que se pruebe y se reporten fallos.
 
-- **Estado medido (2026-10-20):** 914.295 de 917.139 campos comparables coinciden con las observaciones del producto de
-  referencia (99,69 %), pero hay 2.633 diferencias, 211 ausentes y 1.138.240 campos registrados que **no** se comparan y por
+- **Estado medido (2026-10-20):** 918.405 de 921.013 campos comparables coinciden con las observaciones del producto de
+  referencia (99,72 %), pero hay 2.608 diferencias, 211 ausentes y 1.134.320 campos registrados que **no** se comparan y por
   tanto no cuentan como paridad. De 154 comandos dibujados, 83 funcionan y 54 estan validados.
 - **Limites:** escaleras y barandillas sin cuerpo 3D; secciones y alzados importados no se dibujan; muchos comandos de la cinta
   estan deshabilitados con su motivo; sin MEP ni estructura; una sola version de referencia; solo Windows; instalador sin firmar.
