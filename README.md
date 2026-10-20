@@ -36,22 +36,43 @@ any other BIM product installed to run.
 
 ## Screenshots
 
-Both images are real captures of the ASTERION alpha window (1920 x 1080), taken from a small demo house that was
-**created from scratch with ASTERION's own tools** (wall, door, window, floor, roof, room, column, curtain wall, stair, grid,
-dimension, tag, text and section tools, driven through the real window by the project's self-test; see
-[Try it](#try-it)). No model from any other product or any third party is shown.
+All images are real captures of the ASTERION alpha window (1920 x 1080) showing the **ASTERION Villa**, a three-storey contemporary
+house created from scratch with ASTERION's own engine operations: 37 walls in six layered types plus a curtain-wall type (two curved
+glazed walls and a double-height curtain wall), 14 doors and 15 windows, floors, ceilings, a hipped roof with flat roofs and terraces,
+13 named and numbered rooms, columns, a structural grid, stairs with railings, dimensions, tags and notes, two sections, four
+elevations, four schedules, two sheets and a site. No model from any other product or any third party is shown. A self-test rebuilds
+the villa, saves it, opens it again and reads every count back.
 
-![ASTERION alpha, floor plan of the demo house: four walls with a door and a window, a room with its tag, a column, a grid line, an arc wall to the east and a dimension below](docs/images/asterion-alpha-floor-plan.png)
+![ASTERION BIM 3D view of the ASTERION Villa: a three-storey contemporary house with a double-height glazed facade, a timber box overhanging it on slim columns, a hipped roof, a studio wing with a roof terrace and a walled courtyard, on a lawn](docs/images/01-villa-3d-hero.png)
 
-*Floor plan of the demo house, drawn from the model by the engine. The ribbon, properties palette and project browser are
-the application shell.*
+*Shaded 3D view of the whole building from the south-east.*
 
-![ASTERION alpha, 3D view of the same demo house: shaded walls, a floor, a pitched roof, a column and a curved curtain wall](docs/images/asterion-alpha-3d-view.png)
+![Close-up of the ASTERION Villa: the curtain-wall facade with its grid and mullions, three columns carrying the overhanging second floor, and the roof terrace of the studio wing](docs/images/02-villa-3d-curtain-wall.png)
 
-*The 3D view of the same model (13 solids). Stairs and railings are not drawn in 3D yet, see
-[Known limitations](#known-limitations).*
+*Consistent-colours 3D view, zoomed on the double-height curtain wall, the columns and the overhang.*
 
-Captured from a build of development-tree commit `3d71d951` on 2026-10-20 with the shell's own `--snapshot` option.
+![Ground floor plan of the ASTERION Villa: hall, living room, kitchen with a semicircular bay, studio and utility room, with room tags, door and window tags, grid lines, a dimension string and section marks](docs/images/03-villa-ground-floor-plan.png)
+
+*Ground floor plan, drawn from the model: rooms with name and number, tagged doors and windows, grids and dimensions.*
+
+![First floor plan of the ASTERION Villa: bedroom, landing, master bedroom and lounge, the void over the living room and the roof terrace of the studio wing](docs/images/04-villa-first-floor-plan.png)
+
+*First floor plan.*
+
+![Cross section of the ASTERION Villa at 1:50: three storeys, floor slabs, cut walls, openings and the hipped roof](docs/images/05-villa-section.png)
+
+*Cross section at 1:50 (outline line work: no hatching in this alpha).*
+
+![South elevation of the ASTERION Villa: the glazed curtain-wall facade, the overhanging timber box, the studio wing and the courtyard wall](docs/images/06-villa-south-elevation.png)
+
+*South elevation at 1:50 (outline line work, no hidden-line removal in this alpha).*
+
+![Door schedule of the ASTERION Villa listing 14 doors by mark, type, width, height and level](docs/images/07-villa-door-schedule.png)
+
+*A schedule read from the model on every refresh.*
+
+What the pictures do not show, honestly: stairs and railings have no 3D body yet, materials do not colour the 3D view, and sections and
+elevations are outline drawings. See [Known limitations](#known-limitations).
 
 ## Status at a glance
 
