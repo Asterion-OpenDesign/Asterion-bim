@@ -128,7 +128,7 @@ angles. The summary is regenerated on every build.
 | Measure | Result |
 |---|---|
 | Milestone verification, commit `02df9b7c`, 2026-10-20 02:58 | **ALL PASS**: 641 self-tests PASS, 0 FAIL; live performance 7 PASS; drawing-experience targets 20 of 20 met |
-| Windows installer test, development-tree commit `b51a55bc`, 2026-10-20 | silent install **OK**; 695 edit self-tests and 39 demo steps run from the installed copy (**0 FAIL**); snapshot **OK**; uninstall removes the install folder. On the one test machine, which had earlier test builds installed, the Start-menu shortcut stayed after uninstall |
+| Windows installer test, development-tree commit `bdfc6195`, 2026-10-20 | silent install **OK**; 1,119 edit self-tests and 40 demo steps run from the installed copy (**0 FAIL**); snapshot **OK**; uninstall removes the install folder. On the one test machine, which had earlier test builds installed, the Start-menu shortcut stayed after uninstall |
 | "Build a house from scratch" demo script, part A, run 2026-10-20 on the build used for the screenshots (`3d71d951`) | 26 steps, 26 PASS, 0 FAIL; 28 committing clicks, median 2.5 ms, 90th percentile 5.2 ms, worst 10.5 ms (press to end of redraw) |
 
 The self-tests drive the real window and read every result back from the engine. They show that the application does what
@@ -223,9 +223,9 @@ Design rules that the project holds itself to:
 
 **Requirements:** Windows 11 x64 and a GPU that supports DirectX 12 or Vulkan. The installer is about 22 MB; installed size has not been measured. Tested on one machine configuration so far (one discrete NVIDIA GPU), so other hardware is unknown territory.
 
-1. **Download.** The first alpha build, `AsterionBim-0.1.0-setup.exe` (about 22 MB), is on this repository's
-   [Releases page](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/tag/v0.1.0-alpha.1) (marked pre-release).
-2. **Check the file.** The release notes list its SHA-256. In PowerShell: `Get-FileHash .\AsterionBim-0.1.0-setup.exe -Algorithm SHA256`.
+1. **Download.** The latest alpha build, `AsterionBim-0.1.0-alpha.2-setup.exe` (about 23 MB), is on this repository's
+   [Releases page](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/latest).
+2. **Check the file.** The release notes list its SHA-256. In PowerShell: `Get-FileHash .\AsterionBim-0.1.0-alpha.2-setup.exe -Algorithm SHA256`.
 3. **Install.** The installer is unsigned, so SmartScreen will ask for confirmation. It installs per machine into
    `C:\Program Files\ASTERION` by default; `MSIINSTALLPERUSER=1` installs for the current user without elevation.
    Uninstall from Windows "Installed apps".

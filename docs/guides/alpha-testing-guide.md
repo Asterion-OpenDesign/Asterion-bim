@@ -1,6 +1,6 @@
 # ASTERION BIM alpha - testing guide
 
-This guide says what you can try in the first alpha build (`0.1.0-alpha.1`) and what you should not expect to work.
+This guide says what you can try in the first alpha build (`0.1.0-alpha.2`) and what you should not expect to work.
 It is a snapshot of 2026-10-20. If something here and the application disagree, the application is right: please
 [open an issue](https://github.com/Asterion-OpenDesign/Asterion-bim/issues) and tell us.
 
@@ -9,8 +9,8 @@ It is a snapshot of 2026-10-20. If something here and the application disagree, 
 
 ## 1. Install
 
-1. Download `AsterionBim-0.1.0-setup.exe` from the [latest release](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/latest).
-2. Check its SHA-256 (listed in the release notes): `Get-FileHash .\AsterionBim-0.1.0-setup.exe -Algorithm SHA256`.
+1. Download `AsterionBim-0.1.0-alpha.2-setup.exe` from the [latest release](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/latest).
+2. Check its SHA-256 (listed in the release notes): `Get-FileHash .\AsterionBim-0.1.0-alpha.2-setup.exe -Algorithm SHA256`.
 3. Run it. The installer is **unsigned**, so Windows SmartScreen asks for confirmation ("More info" > "Run anyway").
 4. Requirements: Windows 11, 64-bit, a GPU that supports DirectX 12 or Vulkan (there is no software fallback in this alpha: without one the window opens and says why). Nothing else needs to be installed.
 5. Uninstall from Windows "Installed apps". On a machine that had earlier test builds, the Start-menu shortcut can stay behind.
