@@ -3,6 +3,7 @@
 ![status: alpha](https://img.shields.io/badge/status-alpha%20demo-orange)
 ![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue)
 ![platform: Windows](https://img.shields.io/badge/platform-Windows%2011%20x64-lightgrey)
+[![Discord](https://img.shields.io/badge/chat-Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/5SkYcetf3)
 
 An independent, open-source building information modelling (BIM) application, built from scratch. Its goal is to let
 people model, document and exchange architectural projects with a tool they can inspect, extend and run without a
@@ -16,7 +17,7 @@ proprietary licence.
 
 [What is this](#what-is-this) | [Screenshots](#screenshots) | [Status at a glance](#status-at-a-glance) | [Measured numbers](#measured-numbers) |
 [Known limitations](#known-limitations) | [What alpha means](#what-alpha-means) | [Architecture](#architecture) |
-[Try it](#try-it) | [Contributing](#contributing) | [Roadmap](#roadmap) | [Legal position](#legal-position) |
+[Try it](#try-it) | [Community](#community) | [Contributing](#contributing) | [Roadmap](#roadmap) | [Legal position](#legal-position) |
 [Licence](#licence) | [En espanol](#en-espanol)
 
 ## What is this
@@ -233,6 +234,11 @@ Verified locally with `cargo test --workspace --locked --offline` (Rust 1.99.0, 
 
 Behavioural rules are cited in the code as `Spec <id>` and stated in [docs/specs/engine-rules.md](docs/specs/engine-rules.md); what is
 not known is listed in [docs/open-questions.md](docs/open-questions.md). Third-party crates: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Community
+
+Come and talk to us: **[ASTERION on Discord](https://discord.gg/5SkYcetf3)**. It is the place for questions, feedback on the alpha, and
+showing what you built. Bug reports with a reproduction are still best as GitHub issues, so they are not lost.
 
 ## Contributing
 
