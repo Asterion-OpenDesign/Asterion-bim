@@ -207,7 +207,7 @@ Design rules that the project holds itself to:
 3. **Install.** The installer is unsigned, so SmartScreen will ask for confirmation. It installs per machine into
    `C:\Program Files\ASTERION` by default; `MSIINSTALLPERUSER=1` installs for the current user without elevation.
    Uninstall from Windows "Installed apps".
-4. **Try the 10-minute tour.** File > New, then with the real tools: draw four walls (Wall tool), an arc wall, a door and a
+4. **Try the 10-minute tour** (the full [alpha testing guide](docs/guides/alpha-testing-guide.md) lists what to test per ribbon tab and what not to expect). File > New, then with the real tools: draw four walls (Wall tool), an arc wall, a door and a
    window, a floor, a ceiling and a roof, a room, a column, a curtain wall, a stair with railings, a level and a grid, a dimension,
    a tag and a text note; make a section and an elevation; open the 3D view; make a schedule of walls; save and reopen.
    The shell ships the same script as a self-check: `asterion-shell.exe --selftest-demo` runs it through the real window and
