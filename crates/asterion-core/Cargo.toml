@@ -1,0 +1,13 @@
+[package]
+name = "asterion-core"
+description = "ASTERION Core: element identity, transactions with commit/rollback/undo/redo, diagnostics and units shared by all ASTERION engines"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

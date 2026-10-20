@@ -16,6 +16,8 @@ goal; they imply no certification and no completeness of compatibility.
 
 Third-party components
 ----------------------
-This repository currently contains no third-party source code or binaries.
-A complete THIRD_PARTY_NOTICES file, generated from the dependency lock files,
-accompanies any release that bundles or links third-party components.
+This repository contains no third-party source code or binaries. The engine crates
+depend on Rust crates (serde and its dependencies) that are fetched at build time
+under their own licences; they are listed in THIRD_PARTY_NOTICES.md, generated from
+the dependency lock file. A release that bundles or links further third-party
+components lists them there as well.

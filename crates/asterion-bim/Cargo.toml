@@ -1,0 +1,12 @@
+[package]
+name = "asterion-bim"
+description = "ASTERION BIM Semantic Engine (v0.1): levels, layered wall types, walls, typed parameters, deterministic regeneration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+asterion-core.workspace = true
+asterion-geom.workspace = true

@@ -216,8 +216,23 @@ Design rules that the project holds itself to:
    what you saw, and a screenshot if it helps. The build is the version shown in the window title. Do **not** attach files you have no right to share, and never attach models that
    belong to a client or employer.
 
-There is no source build yet: source code arrives in this repository module by module (see [Legal position](#legal-position)).
-When it does, the build instructions will be added **after** they have been verified from a clean checkout.
+The engine crates are published as source (see [Build the engine](#build-the-engine)); the desktop shell, the viewport and the
+native-format crates are not published yet and arrive module by module (see [Legal position](#legal-position)).
+
+## Build the engine
+
+The workspace holds three crates: `asterion-core` (identity, transactions, diagnostics), `asterion-geom` (geometry kernel) and
+`asterion-bim` (the semantic engine). They need Rust 1.80 (declared) or newer and no system libraries.
+
+```
+cargo build --workspace --locked
+cargo test --workspace --locked
+```
+
+Verified locally with `cargo test --workspace --locked --offline` (Rust 1.99.0, Windows): 774 tests passed (asterion-core 20, asterion-geom 222, asterion-bim 532) and 1 ignored (a timing probe), none failed. The continuous-integration workflow in `.github/workflows` has not run yet, and the declared minimum Rust version has not been tested.
+
+Behavioural rules are cited in the code as `Spec <id>` and stated in [docs/specs/engine-rules.md](docs/specs/engine-rules.md); what is
+not known is listed in [docs/open-questions.md](docs/open-questions.md). Third-party crates: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Contributing
 
@@ -260,7 +275,9 @@ Honest and ordered by dependency; dates are targets, not promises.
 - **What we do and do not claim about provenance.** The rules are in [docs/PROVENANCE_POLICY.md](docs/PROVENANCE_POLICY.md) and
   are enforced by an automated gate in CI. Under those rules a module is called independently developed only when its entry in
   [provenance/LEDGER.md](provenance/LEDGER.md) shows who wrote it, from what, and the separation from excluded material. That
-  ledger is empty at the time of writing, because no source module has been published yet. We do not claim a formally
+  ledger has an entry for each of the three engine crates published so far (`asterion-core`, `asterion-geom`, `asterion-bim`);
+  none of those entries claims the separation that rule 5 requires, so none of the crates is described as independently
+  developed. We do not claim a formally
   certified clean-room process, and a passing gate is not a legal opinion.
 - **Third-party components.** The shell uses Qt 6 under LGPL-3.0, dynamically linked; Rust dependencies are permissively
   licensed. Each release lists them in a third-party notice.

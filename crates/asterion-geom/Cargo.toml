@@ -1,0 +1,10 @@
+[package]
+name = "asterion-geom"
+description = "ASTERION Geometry Kernel (v0.1): vectors, tolerances, axis-aligned boxes and planar prism solids"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
