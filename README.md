@@ -160,7 +160,7 @@ This list is deliberately long. If something you need is not here, assume it is 
 - **Selection and properties:** click, hover pre-selection, Tab cycling, add / remove and window / crossing selection work in plan, section, elevation, callout and 3D views, and the Properties palette follows the selection. 3D window / crossing selection ignores occlusion; railing types have no Type Properties page; viewports on a sheet cannot be dragged yet; there are no selection filters.
 - **No MEP, structure, steel, precast, analysis or collaboration.** Architecture only.
 - **One reference version only.** No other version of any product is a target.
-- **Windows only** (tested on Windows 11, x64, with a Vulkan-capable GPU). No Linux, no macOS.
+- **Windows only** (tested on Windows 11, x64, with a GPU that supports DirectX 12 or Vulkan). No Linux, no macOS.
 - **The installer is unsigned.** Windows SmartScreen will warn you. Check the SHA-256 listed in the release notes.
 - **No IFC, DWG, DXF or PDF export or import yet.** The native `.asterion` format may change between alpha builds.
 - **Several behaviours are the engine's own choice, not matched to the reference**: the frame of an elevation view, which
@@ -221,7 +221,7 @@ Design rules that the project holds itself to:
 
 ## Try it
 
-**Requirements:** Windows 11 x64 and a Vulkan-capable GPU. The installer is about 22 MB; installed size has not been measured. Tested on one machine configuration so far (one discrete NVIDIA GPU), so other hardware is unknown territory.
+**Requirements:** Windows 11 x64 and a GPU that supports DirectX 12 or Vulkan. The installer is about 22 MB; installed size has not been measured. Tested on one machine configuration so far (one discrete NVIDIA GPU), so other hardware is unknown territory.
 
 1. **Download.** The first alpha build, `AsterionBim-0.1.0-setup.exe` (about 22 MB), is on this repository's
    [Releases page](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/tag/v0.1.0-alpha.1) (marked pre-release).
