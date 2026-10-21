@@ -24,7 +24,7 @@ proprietary licence.
 
 ASTERION BIM is a desktop BIM application for Windows. It has its own semantic building model (levels, walls, floors,
 roofs, openings, rooms, grids, views and so on), its own geometry kernel, its own native document format
-(`.asterion`, a versioned text format), a desktop shell with ribbon, properties palette and project browser, and a
+(`.ast`, a compact versioned binary format; the older `.asterion.json` text projects still open), a desktop shell with ribbon, properties palette and project browser, and a
 viewport that draws plans, 3D views, sections, elevations and schedules from the model.
 
 Its modelling workflows and results are measured against one fixed reference: recorded observations of a single version of a
@@ -71,7 +71,7 @@ the villa, saves it, opens it again and reads every count back.
 
 *A schedule read from the model on every refresh.*
 
-What the pictures do not show, honestly: stairs and railings have no 3D body yet, materials do not colour the 3D view, and sections and
+What the pictures do not show, honestly: the stairs of the villa are hidden inside its walls in these views, materials do not colour the 3D view, and sections and
 elevations are outline drawings. See [Known limitations](#known-limitations).
 
 ## Status at a glance
@@ -85,9 +85,9 @@ elevations are outline drawings. See [Known limitations](#known-limitations).
 | Columns, curtain walls | Works; not yet counted as validated against the reference |
 | Views: plan, 3D, section, elevation, schedule, sheet | Plan, 3D, section, elevation, callout and schedule views work (selection and Properties in every view type); sheets are basic |
 | Annotation: aligned and linear dimension, tag, text | Basic |
-| Stairs and railings | Placed with correct counts; **no 3D body yet**, nothing in section or 3D |
+| Stairs and railings | Straight runs, landings, supports, railings, balusters and top rails have a body in 3D, section and plan; **spiral, winder and monolithic runs are not drawn yet**, and two of the three railing types are approximations |
 | Editing | Move, copy, rotate, mirror, offset, scale, array, split, trim / extend, join geometry, wall joins, pin, delete, paste, match type, undo / redo work. Align, cut, split with gap, repeat, displace and similar are disabled with the reason |
-| Saving | Native `.asterion` format only |
+| Saving | Native `.ast` format (and the older `.asterion.json` text format); recovery copy after an abnormal exit |
 | Structure, steel, precast, MEP (systems), analysis, collaboration | **Not supported.** The tabs exist in the window; their commands are disabled |
 | Windows installer | Exists, **unsigned** |
 | Other operating systems, other versions of the reference application | Not supported |
@@ -128,7 +128,7 @@ angles. The summary is regenerated on every build.
 | Measure | Result |
 |---|---|
 | Milestone verification, commit `02df9b7c`, 2026-10-20 02:58 | **ALL PASS**: 641 self-tests PASS, 0 FAIL; live performance 7 PASS; drawing-experience targets 20 of 20 met |
-| Windows installer test, development-tree commit `bdfc6195`, 2026-10-20 | silent install **OK**; 1,119 edit self-tests and 40 demo steps run from the installed copy (**0 FAIL**); snapshot **OK**; uninstall removes the install folder. On the one test machine, which had earlier test builds installed, the Start-menu shortcut stayed after uninstall |
+| Windows installer test, development-tree commit `d4bf2bb6`, 2026-10-21 | silent install **OK**; `.ast` registration and removal **OK**; 1,194 edit self-tests and 41 demo steps run from the installed copy (**0 FAIL**); snapshot **OK**; uninstall removes the install folder. On the one test machine, which had earlier test builds installed, the Start-menu shortcut stayed after uninstall |
 | "Build a house from scratch" demo script, part A, run 2026-10-20 on the build used for the screenshots (`3d71d951`) | 26 steps, 26 PASS, 0 FAIL; 28 committing clicks, median 2.5 ms, 90th percentile 5.2 ms, worst 10.5 ms (press to end of redraw) |
 
 The self-tests drive the real window and read every result back from the engine. They show that the application does what
@@ -152,8 +152,7 @@ counted as parity.
 
 This list is deliberately long. If something you need is not here, assume it is missing.
 
-- **Stairs and railings have no 3D body.** Counts of risers, treads and landings are modelled; geometry is not generated,
-  so nothing appears in 3D or in a section.
+- **Spiral, winder and monolithic stair runs have no 3D body yet**, and two of the three railing types are approximations (only the pipe railing follows measured data).
 - **Many ribbon commands are disabled**, each with its reason in the tooltip: all remaining annotation kinds
   (spot elevations, detail items, legends, scope boxes, matchlines, area plans, ramps, model text and more), most of the
   View tab beyond plan / 3D / section / elevation / schedule / sheet, loadable-family authoring, and a long tail of flyout commands.
@@ -162,7 +161,7 @@ This list is deliberately long. If something you need is not here, assume it is 
 - **One reference version only.** No other version of any product is a target.
 - **Windows only** (tested on Windows 11, x64, with a GPU that supports DirectX 12 or Vulkan). No Linux, no macOS.
 - **The installer is unsigned.** Windows SmartScreen will warn you. Check the SHA-256 listed in the release notes.
-- **No IFC, DWG, DXF or PDF export or import yet.** The native `.asterion` format may change between alpha builds.
+- **No IFC, DWG, DXF or PDF export or import yet.** The native `.ast` format may change between alpha builds.
 - **Several behaviours are the engine's own choice, not matched to the reference**: the frame of an elevation view, which
   elements a section cuts, how a schedule names itself, the arc-wall drawing gesture, and what a plain duplicate copies.
   They are marked as such inside the project and are not counted as parity.
@@ -193,7 +192,7 @@ flowchart TB
         BIM["BIM semantic engine: levels, walls, floors, roofs, openings, rooms, views, schedules, annotations"]
         GEO["Geometry kernel: curves, regions, booleans, sweeps, exact area and volume"]
         CORE["Core: identity, transactions (commit, rollback, undo, redo), units, diagnostics"]
-        PER["Persistence: native .asterion document"]
+        PER["Persistence: native .ast document"]
     end
     subgraph Verify["Verification (not part of the product)"]
         CMP["Differential comparator"]
@@ -223,9 +222,9 @@ Design rules that the project holds itself to:
 
 **Requirements:** Windows 11 x64 and a GPU that supports DirectX 12 or Vulkan. The installer is about 22 MB; installed size has not been measured. Tested on one machine configuration so far (one discrete NVIDIA GPU), so other hardware is unknown territory.
 
-1. **Download.** The latest alpha build, `AsterionBim-0.1.0-alpha.2-setup.exe` (about 23 MB), is on this repository's
+1. **Download.** The latest alpha build, `AsterionBim-0.1.0-alpha.3-setup.exe` (about 24 MB), is on this repository's
    [Releases page](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/latest).
-2. **Check the file.** The release notes list its SHA-256. In PowerShell: `Get-FileHash .\AsterionBim-0.1.0-alpha.2-setup.exe -Algorithm SHA256`.
+2. **Check the file.** The release notes list its SHA-256. In PowerShell: `Get-FileHash .\AsterionBim-0.1.0-alpha.3-setup.exe -Algorithm SHA256`.
 3. **Install.** The installer is unsigned, so SmartScreen will ask for confirmation. It installs per machine into
    `C:\Program Files\ASTERION` by default; `MSIINSTALLPERUSER=1` installs for the current user without elevation.
    Uninstall from Windows "Installed apps".
@@ -285,7 +284,7 @@ Honest and ordered by dependency; dates are targets, not promises.
 |---|---|
 | Now | Public foundations (this repository), provenance gate and CI; first alpha installer for testers in preparation |
 | Target 2026-10-23 | Alpha demo of the **core architecture scope**: straight and arc walls, doors, windows, floors, roofs, ceilings, rooms, stairs, railings, columns, curtain walls, levels, grids, plan / 3D / section / elevation / sheet / basic schedules, with every item in scope either validated against the reference or listed here as unverified |
-| Next | Close the listed differences (arc walls, joins at other angles), give stairs and railings a 3D body, widen selection and annotation, regenerate the numbers on every build |
+| Next | Close the listed differences (arc walls, joins at other angles), draw spiral and winder stairs, widen selection and annotation, regenerate the numbers on every build |
 | Then | Publish source modules one by one with specification, tests and provenance entry; build instructions verified from a clean checkout; signed installer |
 | Later, one discipline at a time | Structure, then MEP, then the rest. IFC and other open exchange formats. Nothing here is started |
 

@@ -1,6 +1,6 @@
 # ASTERION BIM alpha - testing guide
 
-This guide says what you can try in the first alpha build (`0.1.0-alpha.2`) and what you should not expect to work.
+This guide says what you can try in the first alpha build (`0.1.0-alpha.3`) and what you should not expect to work.
 It is a snapshot of 2026-10-20. If something here and the application disagree, the application is right: please
 [open an issue](https://github.com/Asterion-OpenDesign/Asterion-bim/issues) and tell us.
 
@@ -9,8 +9,8 @@ It is a snapshot of 2026-10-20. If something here and the application disagree, 
 
 ## 1. Install
 
-1. Download `AsterionBim-0.1.0-alpha.2-setup.exe` from the [latest release](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/latest).
-2. Check its SHA-256 (listed in the release notes): `Get-FileHash .\AsterionBim-0.1.0-alpha.2-setup.exe -Algorithm SHA256`.
+1. Download `AsterionBim-0.1.0-alpha.3-setup.exe` from the [latest release](https://github.com/Asterion-OpenDesign/Asterion-bim/releases/latest).
+2. Check its SHA-256 (listed in the release notes): `Get-FileHash .\AsterionBim-0.1.0-alpha.3-setup.exe -Algorithm SHA256`.
 3. Run it. The installer is **unsigned**, so Windows SmartScreen asks for confirmation ("More info" > "Run anyway").
 4. Requirements: Windows 11, 64-bit, a GPU that supports DirectX 12 or Vulkan (there is no software fallback in this alpha: without one the window opens and says why). Nothing else needs to be installed.
 5. Uninstall from Windows "Installed apps". On a machine that had earlier test builds, the Start-menu shortcut can stay behind.
@@ -19,7 +19,7 @@ It is a snapshot of 2026-10-20. If something here and the application disagree, 
 
 File > New, then with the real tools: draw four walls and an arc wall; place a door and a window; add a floor, a ceiling and a roof;
 create a room; place a column; add a curtain wall; add a stair with a railing; add a level and a grid; add a dimension, a tag and a
-text note; make a section and an elevation; open the 3D view; make a schedule of walls; save the project and open it again.
+text note; make a section and an elevation; open the 3D view; make a schedule of walls; save the project (it is saved as an `.ast` file; projects saved by earlier builds as `.asterion.json` still open) and open it again.
 Every count should come back identical after reopening.
 
 The same script runs as an automatic self-check: `asterion-shell.exe --selftest-demo` drives the real window and prints one `PASS` or
@@ -29,7 +29,7 @@ The same script runs as an automatic self-check: `asterion-shell.exe --selftest-
 
 ### Architecture tab
 - **Build:** Wall (straight and arc), Door, Window, Column, Roof (footprint), Ceiling, Floor, Curtain Grid, Mullion.
-- **Circulation:** Railing, Stair. Stairs and railings are placed with correct counts, but **have no 3D body yet**: you see the run path in plan only.
+- **Circulation:** Railing, Stair. Stairs and railings have a body in 3D, section and plan (straight runs, landings, supports, round rails, balusters and top rails); spiral, winder and monolithic runs are not drawn yet.
 - **Model:** Model Line, Model Group.
 - **Room & Area:** Room, Room Separator, Tag Room.
 - **Opening:** By Face, Shaft, Wall, Vertical.
@@ -60,17 +60,17 @@ The same script runs as an automatic self-check: `asterion-shell.exe --selftest-
 
 - **Selection** works in plan, section, elevation, callout and 3D views: click, hover pre-selection, `Tab` to cycle through the elements behind, `Ctrl` / `Shift` to add or remove, window selection (left to right) and crossing selection (right to left). In 3D, window / crossing selection ignores occlusion.
 - **Properties palette** follows the selection and edits in place for: walls, doors, windows, floors, ceilings, roofs, rooms, columns, curtain walls, grids, levels and stairs. With nothing selected it shows the properties of the active view (scale, detail level, visual style, crop, and so on). Values the engine cannot change stay read-only with the reason in the tooltip.
-- **Types:** Duplicate, Rename and Edit Type work for wall, curtain wall, floor, ceiling, roof, door, window, column and stair types. Railing types have no properties page yet.
+- **Types:** Duplicate, Rename and Edit Type work for wall, curtain wall, floor, ceiling, roof, door, window, column and stair types. Railing types have a properties page (name, used-by, duplicate, rename; the type parameters are not editable yet).
 - **Project Browser:** one node per view, double-click opens it, the active view is bold, the context menu works or is disabled with a reason.
 - Undo / Redo keep the selection and the palette values in step.
 
 ## 5. What not to expect
 
-- Stairs and railings are not drawn in 3D or in sections.
+- Spiral, winder and monolithic stair runs are not drawn; two of the three railing types are approximations.
 - Doors and windows show as openings, without the geometry of the family.
 - Sections and elevations do not draw rooms, grids, tags, dimensions or text, and there is no hidden-line removal or fills.
 - No MEP, structure, steel, precast, analysis or collaboration. Architecture only.
-- No IFC, DWG, DXF or PDF import or export yet. The native `.asterion` format may change between alpha builds.
+- No IFC, DWG, DXF or PDF import or export yet. The native `.ast` format may change between alpha builds.
 - Viewports on a sheet cannot be dragged yet; there are no selection filters.
 - Windows only.
 
