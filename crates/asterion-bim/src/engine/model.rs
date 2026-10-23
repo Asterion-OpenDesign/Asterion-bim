@@ -128,20 +128,30 @@ impl CompoundStructure {
         self.layers.iter().map(|l| l.width).sum()
     }
 
+    // A structure built by `new` always leaves a core layer, but one read from a damaged or hand-edited file may not (the shell
+    // counts are plain numbers in the file): the accessors below clamp instead of indexing out of range (QA: a count of 999999
+    // made `offset_for_location_line` panic in a slice, so the wall type could not be shown).
+    fn shells(&self) -> (usize, usize) {
+        let n = self.layers.len();
+        let ext = self.exterior_shell_layers.min(n);
+        (ext, self.interior_shell_layers.min(n - ext))
+    }
+
     pub fn first_core_layer_index(&self) -> usize {
-        self.exterior_shell_layers
+        self.shells().0
     }
 
     pub fn last_core_layer_index(&self) -> usize {
-        self.layers.len() - 1 - self.interior_shell_layers
+        (self.layers.len() - self.shells().1).saturating_sub(1)
     }
 
     /// Signed distance from the wall centre plane to `line`, positive towards the exterior face. OBSERVED for all six
     /// values on symmetric and asymmetric structures.
     pub fn offset_for_location_line(&self, line: LocationLine) -> f64 {
         let half = self.width() / 2.0;
-        let ext_shell: f64 = self.layers[..self.exterior_shell_layers].iter().map(|l| l.width).sum();
-        let int_shell: f64 = self.layers[self.layers.len() - self.interior_shell_layers..].iter().map(|l| l.width).sum();
+        let (ext, int) = self.shells();
+        let ext_shell: f64 = self.layers[..ext].iter().map(|l| l.width).sum();
+        let int_shell: f64 = self.layers[self.layers.len() - int..].iter().map(|l| l.width).sum();
         let core_ext = half - ext_shell;
         let core_int = -half + int_shell;
         match line {

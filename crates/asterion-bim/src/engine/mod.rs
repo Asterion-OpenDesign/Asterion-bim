@@ -18,3 +18,4 @@ pub mod groups;
 pub mod import_ops;
 pub mod document_settings;
 pub mod base_points;
+pub mod param_tables;

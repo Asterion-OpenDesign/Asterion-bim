@@ -1,4 +1,4 @@
-//! Duplicating and renaming the TYPES of the model elements (lane SHELL3: the Properties palette's Edit Type > Duplicate / Rename).
+//! Duplicating and renaming the TYPES of the model elements.
 //!
 //! `ops::duplicate_hosted_type` already existed for doors and windows; the shell's dialog duplicated the other types by creating a new
 //! one from the values it showed (no name check, no copy of what the dialog does not show). One entry per kind of type now:

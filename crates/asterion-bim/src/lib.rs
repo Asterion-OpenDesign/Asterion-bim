@@ -26,14 +26,14 @@ pub mod levels_grids;
 pub mod viewing;
 pub mod documentation;
 
-pub use engine::{model, ops, modify, transform, spec, params, instance_params, type_names, type_ops, quantity, failures, phases, groups, import_ops, document_settings, base_points};
+pub use engine::{model, ops, modify, transform, spec, params, instance_params, type_names, type_ops, quantity, failures, phases, groups, import_ops, document_settings, base_points, param_tables};
 pub use walls::{joins, join_end, join_order, junctions, crossings, curved_ends, curved_joins, wall_profiles, wall_vertices, stacked, sweeps, arc_sweeps, cut};
-pub use geometry::{regen, element_geometry, mesh3d, boxtopo, sketch};
+pub use geometry::{regen, element_geometry, mesh3d, boxtopo, sketch, polysolid};
 pub use slabs::{roof, slab_shape, rafter_cut, toposolid};
 pub use rooms::{arc_rooms, room_trim, rooms_ext, shafts};
-pub use vertical::{stairs, stairs_scene, columns, curtains};
+pub use vertical::{stairs, stairs_scene, stair_solids, stair_import, columns, curtains};
 pub use levels_grids::{datums, datum_extents, item_number};
-pub use viewing::{views, view_camera, view_display, view_dup, view_names, view_visibility, plan_graphics, section_graphics, docviews, browser, pick3d};
+pub use viewing::{views, view_camera, view_display, view_dup, view_names, view_visibility, view_categories, override_style, plan_graphics, section_graphics, docviews, browser, pick3d};
 pub use documentation::{annot, dims, tempdim, schedules, sheets, docs};
 
 pub use model::{

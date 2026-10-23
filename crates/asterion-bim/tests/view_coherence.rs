@@ -94,12 +94,13 @@ fn the_diagnosis_agrees_with_what_the_3d_output_contains() {
         assert_eq!(status(&s, s.three_d, e), Status::Visible, "{name}");
         assert!(mesh.elements.contains(&e), "{name} is VISIBLE but not in the mesh's element set");
     }
-    // the stairs has no body: named, not dropped, and not in the mesh
-    let d = diagnose(m, s.three_d, s.stairs);
-    assert_eq!(d.status, Status::GeometryNotGenerated, "{}", d.log_line());
-    assert!(d.rule.contains("OQ-STAIR-GEOM"), "{}", d.rule);
-    assert!(!mesh.elements.contains(&s.stairs));
-    assert!(!mesh.gaps.is_empty() || true);
+    // the stairs has a body (Spec STAIR-TREAD-RISER-01): its run is in the mesh under its own id and the diagnosis says so
+    for (name, e) in [("stairs", s.stairs), ("stairs run", s.stairs_run)] {
+        let d = diagnose(m, s.three_d, e);
+        assert_eq!(d.status, Status::Visible, "{name}: {}", d.log_line());
+        assert!(mesh.elements.contains(&e), "{name} is VISIBLE but not in the mesh's element set");
+    }
+    assert!(!mesh.gaps.iter().any(|(id, _)| *id == s.stairs || *id == s.stairs_run), "{:?}", mesh.gaps);
 }
 
 #[test]
@@ -284,8 +285,9 @@ fn a_door_follows_its_wall_and_a_hidden_category_leaves_every_view() {
 fn the_registry_names_what_it_cannot_build() {
     let s = scene();
     let m = s.doc.model();
+    // a stairs has treads and risers now (Spec STAIR-TREAD-RISER-01); a gap is named by the stair_solids tests
     let g = element_geometry::geometry_of(m, s.stairs);
-    assert!(matches!(g, Geometry::NotGenerated(ref r) if r.contains("no solid")), "{g:?}");
+    assert!(matches!(g, Geometry::Parts(ref p) if !p.is_empty()), "{g:?}");
     assert_eq!(element_geometry::classify(m, s.stairs), Some(ElementClass::Stairs));
     assert!(matches!(element_geometry::geometry_of(m, s.room), Geometry::Abstract(_)));
     assert!(matches!(element_geometry::geometry_of(m, s.door), Geometry::Void(_)));

@@ -16,6 +16,7 @@
 //! product's own presentation is not specified it is an ENGINE CHOICE and says so.
 
 use crate::model::{BimModel, HostedKind, SlabRole};
+pub use crate::polysolid::{Part, PartRole, PolySolid};
 use asterion_core::ElementId;
 use asterion_geom::Vec2;
 
@@ -232,7 +233,7 @@ pub fn classify(m: &BimModel, id: ElementId) -> Option<ElementClass> {
     if m.stairs.landings.contains_key(&id) {
         return Some(ElementClass::StairsLanding);
     }
-    if m.stairs.railings.contains_key(&id) {
+    if m.stairs.railings.contains_key(&id) || m.stairs_scene.path_railings.contains_key(&id) {
         return Some(ElementClass::StairsRailing);
     }
     if m.rooms.contains_key(&id) {
@@ -272,6 +273,9 @@ pub fn classify(m: &BimModel, id: ElementId) -> Option<ElementClass> {
 pub enum Geometry {
     /// The element has a body: these solids.
     Solid(Vec<Body>),
+    /// The element has a body made of polyhedra that are not vertical prisms (stair treads and risers, stringers, rails, balusters):
+    /// these parts, each with its role.
+    Parts(Vec<Part>),
     /// The element removes material from another one (an opening, a reveal): these are the removed solids.
     Void(Vec<Body>),
     /// The element has no body BY DESIGN (a level, a grid, a room, an annotation): it is drawn as line work,
@@ -291,6 +295,13 @@ impl Geometry {
             _ => &[],
         }
     }
+    /// The polyhedral parts of an assembly (empty for any other geometry).
+    pub fn parts(&self) -> &[Part] {
+        match self {
+            Geometry::Parts(p) => p,
+            _ => &[],
+        }
+    }
     pub fn voids(&self) -> &[Body] {
         match self {
             Geometry::Void(b) => b,
@@ -298,12 +309,21 @@ impl Geometry {
         }
     }
     pub fn has_solid(&self) -> bool {
-        matches!(self, Geometry::Solid(b) if !b.is_empty())
+        matches!(self, Geometry::Solid(b) if !b.is_empty()) || matches!(self, Geometry::Parts(p) if !p.is_empty())
+    }
+    /// Every corner of every solid and part (the hull of these is the element's silhouette).
+    pub fn corners(&self) -> Vec<[f64; 3]> {
+        match self {
+            Geometry::Solid(b) | Geometry::Void(b) => b.iter().flat_map(|x| x.corners()).collect(),
+            Geometry::Parts(p) => p.iter().flat_map(|x| x.solid.vertices().iter().copied()).collect(),
+            _ => Vec::new(),
+        }
     }
     /// A short label for logs and the diagnosis.
     pub fn label(&self) -> String {
         match self {
             Geometry::Solid(b) => format!("solid ({} bod{})", b.len(), if b.len() == 1 { "y" } else { "ies" }),
+            Geometry::Parts(p) => format!("solid ({} part{})", p.len(), if p.len() == 1 { "" } else { "s" }),
             Geometry::Void(b) => format!("void ({} bod{})", b.len(), if b.len() == 1 { "y" } else { "ies" }),
             Geometry::Abstract(r) => format!("no body by design: {r}"),
             Geometry::NotGenerated(r) => format!("NOT GENERATED: {r}"),
@@ -322,6 +342,24 @@ pub mod tone {
     pub const MULLION: [f32; 3] = [0.35, 0.35, 0.37];
     pub const SWEEP: [f32; 3] = [0.62, 0.62, 0.62];
     pub const TOPOSOLID: [f32; 3] = [0.55, 0.60, 0.45];
+    pub const STAIR_STEP: [f32; 3] = [0.72, 0.70, 0.66];
+    pub const STAIR_LANDING: [f32; 3] = [0.74, 0.72, 0.68];
+    pub const STAIR_SUPPORT: [f32; 3] = [0.40, 0.42, 0.45];
+    pub const RAIL: [f32; 3] = [0.30, 0.30, 0.32];
+    pub const BALUSTER: [f32; 3] = [0.38, 0.38, 0.40];
+    pub const PANEL: [f32; 3] = [0.62, 0.78, 0.88];
+}
+
+/// The colour a part is drawn with (ASSUMED, as every tone:).
+pub fn part_tone(r: PartRole) -> [f32; 3] {
+    match r {
+        PartRole::Step => tone::STAIR_STEP,
+        PartRole::Landing => tone::STAIR_LANDING,
+        PartRole::Support => tone::STAIR_SUPPORT,
+        PartRole::TopRail | PartRole::Rail => tone::RAIL,
+        PartRole::Baluster => tone::BALUSTER,
+        PartRole::Panel => tone::PANEL,
+    }
 }
 
 /// The colour a class is drawn with.
@@ -341,29 +379,51 @@ pub fn class_tone(c: ElementClass) -> [f32; 3] {
 /// always drew 25 mm half sections: ENGINE CHOICE).
 pub const MULLION_FALLBACK_HALF_M: f64 = 0.025;
 
-fn stairs_gap() -> Geometry {
-    Geometry::NotGenerated("the stairs module has no solid (treads, risers, stringers): only run location lines and quantities exist (OQ-STAIR-GEOM)".into())
+/// A component's parts, or the reason it has none.
+fn parts_or_gap(r: Result<Vec<Part>, String>) -> Geometry {
+    match r {
+        Ok(p) if !p.is_empty() => Geometry::Parts(p),
+        Ok(_) => Geometry::NotGenerated("the component has no solid".into()),
+        Err(why) => Geometry::NotGenerated(why),
+    }
 }
 
-/// The curtain wall's parts: glass boxes and mullion boxes, or the wall's envelope when the grid has no part.
-fn curtain_geometry(m: &BimModel, wall: ElementId, envelope: Vec<Body>) -> Geometry {
-    let Ok(grid) = crate::curtains::grid_state(m, wall) else {
-        return Geometry::Solid(envelope);
-    };
-    let w = match m.walls.get(&wall) {
-        Some(w) => w,
-        None => return Geometry::Solid(envelope),
-    };
-    let mut bodies = Vec::new();
+/// The whole stairs: every solid of its runs, landings and stringers. When it has none, the reasons its components give.
+fn stairs_geometry(m: &BimModel, id: ElementId) -> Geometry {
+    let parts: Vec<Part> = crate::stair_solids::stairs_parts(m, id).into_iter().flat_map(|(_, p)| p).collect();
+    if !parts.is_empty() {
+        return Geometry::Parts(parts);
+    }
+    let mut why: Vec<String> = Vec::new();
+    for r in m.stairs.runs_of(id) {
+        if let Err(e) = crate::stair_solids::run_geometry(m, r.id) {
+            why.push(e);
+        }
+    }
+    for l in m.stairs.landings.values().filter(|l| l.stairs == id) {
+        if let Err(e) = crate::stair_solids::landing_geometry(m, l.id) {
+            why.push(e);
+        }
+    }
+    why.dedup();
+    Geometry::NotGenerated(if why.is_empty() { "the stairs has no run and no landing".into() } else { why.join("; ") })
+}
+
+/// The curtain wall's parts: the glass boxes and the mullion boxes, in two lists (`None` when the grid cannot be read).
+pub fn curtain_parts(m: &BimModel, wall: ElementId) -> Option<(Vec<Body>, Vec<Body>)> {
+    let grid = crate::curtains::grid_state(m, wall).ok()?;
+    let w = m.walls.get(&wall)?;
+    let mut glass = Vec::new();
     // the glass: the world box the grid reports for each panel (exact for a wall along an axis; the box of an
     // oblique wall's glass is the axis-aligned box that holds it)
     for p in grid.panels.iter().filter(|p| !p.empty) {
         let (lo, hi) = (p.bbox_min, p.bbox_max);
         if hi[0] >= lo[0] && hi[1] >= lo[1] && hi[2] > lo[2] && (hi[0] > lo[0] || hi[1] > lo[1]) {
             let (lo, hi) = ([lo[0], lo[1], lo[2]], [hi[0].max(lo[0] + 1e-6), hi[1].max(lo[1] + 1e-6), hi[2]]);
-            bodies.push(Body::aabb_box(lo, hi));
+            glass.push(Body::aabb_box(lo, hi));
         }
     }
+    let mut mullions = Vec::new();
     let d = (w.end - w.start).normalized().unwrap_or(Vec2::new(1.0, 0.0));
     let n = d.perp_ccw();
     for mu in &grid.mullions {
@@ -377,7 +437,7 @@ fn curtain_geometry(m: &BimModel, wall: ElementId, envelope: Vec<Body>) -> Geome
             // horizontal one)
             let (a, c) = (w.start + d * b.s0, w.start + d * b.s1);
             let corners = [a - n * b.half_t, c - n * b.half_t, c + n * b.half_t, a + n * b.half_t];
-            bodies.push(Body::prism(&corners, b.z0, b.z1));
+            mullions.push(Body::prism(&corners, b.z0, b.z1));
             continue;
         }
         let (side, thick) = size.map_or((MULLION_FALLBACK_HALF_M, MULLION_FALLBACK_HALF_M), |s| (s.side1.max(s.side2), s.half_thickness));
@@ -389,12 +449,41 @@ fn curtain_geometry(m: &BimModel, wall: ElementId, envelope: Vec<Body>) -> Geome
         let (a, b) = if vertical { (s - d * side, s + d * side) } else { (s, e) };
         let (zl, zh) = if vertical { (z0, z1) } else { (z0 - side, z0 + side) };
         let corners = [a - n * thick, b - n * thick, b + n * thick, a + n * thick];
-        bodies.push(Body::prism(&corners, zl, zh));
+        mullions.push(Body::prism(&corners, zl, zh));
     }
-    if bodies.is_empty() {
-        Geometry::Solid(envelope)
-    } else {
-        Geometry::Solid(bodies)
+    Some((glass, mullions))
+}
+
+/// The curtain wall's parts: glass boxes and mullion boxes, or the wall's envelope when the grid has no part.
+fn curtain_geometry(m: &BimModel, wall: ElementId, envelope: Vec<Body>) -> Geometry {
+    match curtain_parts(m, wall) {
+        Some((mut glass, mullions)) if !(glass.is_empty() && mullions.is_empty()) => {
+            glass.extend(mullions);
+            Geometry::Solid(glass)
+        }
+        _ => Geometry::Solid(envelope),
+    }
+}
+
+/// The body of an element as a view with the given curtain-part visibility draws it: a curtain wall loses the glass when its
+/// `Curtain Panels` category is hidden and the mullions when `Curtain Wall Mullions` is (a wall whose grid has no part keeps its
+/// envelope). Every other element is [`geometry_of`].
+pub fn geometry_of_in(m: &BimModel, id: ElementId, parts: crate::view_categories::PartFilter) -> Geometry {
+    if parts.is_all() || classify(m, id) != Some(ElementClass::CurtainWall) {
+        return geometry_of(m, id);
+    }
+    match curtain_parts(m, id) {
+        Some((glass, mullions)) if !(glass.is_empty() && mullions.is_empty()) => {
+            let mut out = Vec::new();
+            if parts.panels {
+                out.extend(glass);
+            }
+            if parts.mullions {
+                out.extend(mullions);
+            }
+            Geometry::Solid(out)
+        }
+        _ => geometry_of(m, id),
     }
 }
 
@@ -481,7 +570,10 @@ pub fn geometry_of(m: &BimModel, id: ElementId) -> Geometry {
                 _ => Geometry::NotGenerated("the toposolid's level or outline is missing".into()),
             }
         }
-        ElementClass::Stairs | ElementClass::StairsRun | ElementClass::StairsLanding | ElementClass::StairsRailing => stairs_gap(),
+        ElementClass::Stairs => stairs_geometry(m, id),
+        ElementClass::StairsRun => parts_or_gap(crate::stair_solids::run_geometry(m, id)),
+        ElementClass::StairsLanding => parts_or_gap(crate::stair_solids::landing_geometry(m, id)),
+        ElementClass::StairsRailing => parts_or_gap(crate::stair_solids::railing_geometry(m, id)),
         ElementClass::Room => Geometry::Abstract("a room is a space: drawn in plans by its tag or seed point, it has no body in 3D or in sections".into()),
         ElementClass::RoomSeparation => Geometry::Abstract("a room separation is a line of the plan".into()),
         ElementClass::Level => Geometry::Abstract("a level is a datum plane: drawn as a line in sections and elevations".into()),
@@ -502,18 +594,27 @@ pub fn geometry_of(m: &BimModel, id: ElementId) -> Geometry {
 pub fn model_gaps(m: &BimModel) -> Vec<(String, usize, String)> {
     let mut by: std::collections::BTreeMap<(String, String), usize> = std::collections::BTreeMap::new();
     let mut add = |what: &str, reason: String| *by.entry((what.to_string(), reason)).or_insert(0) += 1;
-    let stairs_reason = "stairs have no body in the engine (OQ-STAIR-GEOM)";
-    for _ in m.stairs.stairs.keys() {
-        add("stairs", stairs_reason.into());
-    }
-    for _ in m.stairs.runs.keys() {
-        add("stair runs", stairs_reason.into());
-    }
-    for _ in m.stairs.landings.keys() {
-        add("stair landings", stairs_reason.into());
-    }
-    for _ in m.stairs.railings.keys() {
-        add("railings", "railings have no body in the engine (OQ-STAIR-GEOM)".into());
+    // stairs, their runs, landings and railings are asked like every other element: only the ones without a body are named
+    let stair_ids = m
+        .stairs
+        .stairs
+        .keys()
+        .chain(m.stairs.runs.keys())
+        .chain(m.stairs.landings.keys())
+        .chain(m.stairs.railings.keys())
+        .chain(m.stairs_scene.path_railings.keys());
+    for id in stair_ids {
+        let what = match classify(m, *id) {
+            Some(ElementClass::Stairs) => "stairs",
+            Some(ElementClass::StairsRun) => "stair runs",
+            Some(ElementClass::StairsLanding) => "stair landings",
+            _ => "railings",
+        };
+        match geometry_of(m, *id) {
+            Geometry::NotGenerated(r) => add(what, r),
+            Geometry::Failed(r) => add(what, format!("failed: {r}")),
+            _ => {}
+        }
     }
     for id in m.floors.keys().chain(m.docs.toposolids.keys()) {
         let what = classify(m, *id).map_or("element", |c| c.name());
@@ -528,14 +629,22 @@ pub fn model_gaps(m: &BimModel) -> Vec<(String, usize, String)> {
 
 /// The world box of an element's solids (`None` without a solid).
 pub fn bbox(m: &BimModel, id: ElementId) -> Option<([f64; 3], [f64; 3])> {
+    if classify(m, id) == Some(ElementClass::Stairs) {
+        return crate::stair_solids::stairs_bbox(m, id);
+    }
     let g = geometry_of(m, id);
     let mut acc: Option<([f64; 3], [f64; 3])> = None;
-    for b in g.solids() {
-        let (lo, hi) = b.aabb();
+    let mut add = |(lo, hi): ([f64; 3], [f64; 3])| {
         acc = Some(match acc {
             None => (lo, hi),
             Some((a, c)) => ([a[0].min(lo[0]), a[1].min(lo[1]), a[2].min(lo[2])], [c[0].max(hi[0]), c[1].max(hi[1]), c[2].max(hi[2])]),
         });
+    };
+    for b in g.solids() {
+        add(b.aabb());
+    }
+    for p in g.parts() {
+        add(p.solid.aabb());
     }
     acc
 }
@@ -555,6 +664,17 @@ pub fn signature(g: &Geometry) -> u64 {
         Geometry::Solid(b) | Geometry::Void(b) => b,
         _ => &[],
     };
+    if let Geometry::Parts(parts) = g {
+        for p in parts {
+            put(p.role as u8 as f64);
+            put(p.solid.vertex_count() as f64);
+            for v in p.solid.vertices() {
+                put(v[0]);
+                put(v[1]);
+                put(v[2]);
+            }
+        }
+    }
     for b in bodies {
         for l in std::iter::once(&b.outer).chain(b.holes.iter()) {
             put(l.len() as f64);

@@ -45,6 +45,7 @@ pub struct NewWall {
 ///
 /// A new level has no story above and is a building story (Spec L-01: the flag is true at construction).
 pub fn create_level(m: &mut BimModel, cx: &mut TxnContext<'_>, name: &str, elevation: f64) -> Result<ElementId, Failure> {
+    require_numbers("The level elevation", &[elevation])?;
     // OBSERVED: a level named as another one is refused at the call ("Name must be unique"); a second level at the same
     // elevation is accepted.
     if m.levels.values().any(|l| l.name == name) {
@@ -131,6 +132,7 @@ pub fn set_level_building_story(
 /// which is why the instances placed on the level are revisited here in addition to the ones revisited through their host
 /// by [`check_walls`]. The two sets differ exactly when an instance's level is not its host's base level.
 pub fn set_level_elevation(m: &mut BimModel, cx: &mut TxnContext<'_>, level: ElementId, elevation: f64) -> Result<(), Failure> {
+    require_numbers("The level elevation", &[elevation])?;
     m.levels.get_mut(&level).ok_or_else(|| not_found(level))?.elevation = elevation;
     // Spec L-01: moves the level datum by (0, 0, z - elevation) and marks its position atom touched; a level whose story
     // above is this level is re-validated (its finish step lists this level's elevation as a parent). The dependents of a
@@ -216,7 +218,14 @@ pub fn create_wall(m: &mut BimModel, cx: &mut TxnContext<'_>, spec: NewWall) -> 
     m.wall_type(spec.wall_type)?;
     m.level(spec.level)?;
     check_curve(spec.start, spec.end)?;
+    require_numbers("The wall base offset", &[spec.base_offset])?;
     if !(spec.height > 0.0 && spec.height <= MAX_WALL_HEIGHT_M) {
+        return Err(Failure::error(codes::HEIGHT_OUT_OF_RANGE, "The given value for height must be greater than 0 and no more than 30000 feet."));
+    }
+    // QA: a height so small that adding it to the level's elevation changes nothing (1e-308 m on a level at 20 m) has no top above its
+    // base: it is as good as 0, refused like 0, instead of reaching the solid with a prism of no height
+    let base_z = m.level(spec.level)?.elevation + spec.base_offset;
+    if !(base_z + spec.height > base_z) {
         return Err(Failure::error(codes::HEIGHT_OUT_OF_RANGE, "The given value for height must be greater than 0 and no more than 30000 feet."));
     }
     let id = cx.new_id();
@@ -289,6 +298,7 @@ pub fn flip_wall(m: &mut BimModel, cx: &mut TxnContext<'_>, wall: ElementId) -> 
 }
 
 pub fn set_wall_base_offset(m: &mut BimModel, cx: &mut TxnContext<'_>, wall: ElementId, value: f64) -> Result<(), Failure> {
+    require_numbers("The wall base offset", &[value])?;
     crate::groups::guard(m, cx, &[wall]);
     m.wall_mut(wall)?.base_offset = value;
     check_walls(m, cx, &[wall]);
@@ -1161,6 +1171,10 @@ pub fn validate_slab_curve_sketch(boundary: &crate::model::SlabLoop, loops: &[cr
         }
     }
     use crate::sketch::SketchLoop;
+    for l in std::iter::once(boundary).chain(loops.iter()) {
+        let xy: Vec<f64> = l.points.iter().flat_map(|p| [p.x, p.y]).collect();
+        require_numbers("The slab sketch", &xy)?;
+    }
     let mut all: Vec<SketchLoop> = vec![SketchLoop::closed_with_arcs(boundary.points.clone(), boundary.arcs.clone())];
     all.extend(loops.iter().map(|l| SketchLoop::closed_with_arcs(l.points.clone(), l.arcs.clone())));
     map_sketch_fault(crate::sketch::first_fault(&all))
@@ -1197,6 +1211,13 @@ pub fn create_slab_with_loops(
 /// The empty sketch keeps its earlier code.
 pub fn validate_slab_sketch(boundary: &[Vec2], loops: &[Vec<Vec2>]) -> Result<(), Failure> {
     use crate::sketch::{first_fault, SketchLoop};
+    for l in std::iter::once(boundary).chain(loops.iter().map(|l| l.as_slice())) {
+        let xy: Vec<f64> = l.iter().flat_map(|p| [p.x, p.y]).collect();
+        require_numbers("The slab sketch", &xy)?;
+        if l.len() >= 3 && l.iter().all(|p| (*p - l[0]).length() < 1e-9) {
+            return Err(Failure::error(codes::INVALID_BOUNDARY, "A slab loop has no extent: all its points coincide."));
+        }
+    }
     let mut all: Vec<SketchLoop> = vec![SketchLoop::closed(boundary.to_vec())];
     all.extend(loops.iter().map(|l| SketchLoop::closed(l.clone())));
     map_sketch_fault(first_fault(&all))
@@ -1979,6 +2000,7 @@ pub fn peek_next_room_number(m: &BimModel) -> String {
 /// region closes (P7) with no action on the room.
 pub fn create_room(m: &mut BimModel, cx: &mut TxnContext<'_>, level: ElementId, point: Vec2) -> Result<ElementId, Failure> {
     m.level(level)?;
+    require_numbers("The room point", &[point.x, point.y])?;
     let id = cx.new_id();
     let number = next_room_number(m);
     m.rooms.insert(
@@ -2398,6 +2420,8 @@ pub fn set_view_range_planes(
     view: ElementId,
     planes: &[(PlanViewPlane, RangePlane)],
 ) -> Result<(), Failure> {
+    let offsets: Vec<f64> = planes.iter().map(|(_, p)| p.offset).collect();
+    require_numbers("The view range", &offsets)?;
     let v = m.view(view)?;
     if !v.kind.is_plan() {
         return Err(Failure::error(codes::VIEW_NOT_PLAN, "Only a plan view has a view range.").on(&[view]));
@@ -2428,6 +2452,9 @@ pub fn set_view_crop(
     active: Option<bool>,
     visible: Option<bool>,
 ) -> Result<(), Failure> {
+    if let Some(c) = &crop {
+        require_numbers("The crop region", &[c.min.x, c.min.y, c.max.x, c.max.y])?;
+    }
     let v = m.view_mut(view)?;
     if crop.is_some() {
         v.crop = crop;
@@ -2808,7 +2835,20 @@ fn remove_host_inserts(m: &mut BimModel, wall: ElementId) -> Vec<ElementId> {
     gone
 }
 
+/// The largest magnitude, in metres, of a coordinate, an elevation or an offset the engine accepts. ASSUMED (numeric
+/// safety): far beyond any building, far below the point where areas and volumes overflow to infinity.
+pub const NUMERIC_LIMIT_M: f64 = 1.0e9;
+
+/// Every number must be finite and at most [`NUMERIC_LIMIT_M`] in magnitude, else `input.invalid_number` at the call.
+pub(crate) fn require_numbers(what: &str, values: &[f64]) -> Result<(), Failure> {
+    if values.iter().all(|v| v.is_finite() && v.abs() <= NUMERIC_LIMIT_M) {
+        return Ok(());
+    }
+    Err(Failure::error(codes::INVALID_NUMBER, format!("{what}: every number must be finite and no larger than 1e9 metres.")))
+}
+
 fn check_curve(start: Vec2, end: Vec2) -> Result<(), Failure> {
+    require_numbers("The curve", &[start.x, start.y, end.x, end.y])?;
     if (end - start).length() < crate::spec::creation_curve_floor() {
         return Err(Failure::error(codes::CURVE_TOO_SHORT, "Curve length is too small for the reference product's tolerance (as identified by Application.ShortCurveTolerance)."));
     }

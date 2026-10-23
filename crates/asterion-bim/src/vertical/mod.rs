@@ -6,3 +6,5 @@ pub mod stairs;
 pub mod stairs_scene;
 pub mod columns;
 pub mod curtains;
+pub mod stair_solids;
+pub mod stair_import;

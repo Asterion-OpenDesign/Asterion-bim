@@ -1223,6 +1223,7 @@ pub fn delete_stairs(m: &mut BimModel, id: ElementId) -> Result<Vec<ElementId>, 
     }
     for r in &railings {
         m.stairs.railings.remove(r);
+        m.stairs_scene.baluster_instances.remove(r);
     }
     m.stairs.stairs.remove(&id);
     gone.extend(runs);

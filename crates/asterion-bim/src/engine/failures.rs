@@ -107,6 +107,7 @@ pub const CATALOG: &[FailureDef] = &[
     FailureDef { code: codes::BAD_END_INDEX, element: "wall", reference: None },
     FailureDef { code: codes::HEIGHT_OUT_OF_RANGE, element: "wall", reference: None },
     FailureDef { code: codes::CURVE_TOO_SHORT, element: "wall", reference: None },
+    FailureDef { code: codes::INVALID_NUMBER, element: "any", reference: None },
     // Slab sketches - (sketch validators): the definitions are registered with the literal 3.
     FailureDef { code: codes::SLAB_LOOPS_INTERSECT, element: "floor,ceiling,roof", reference: r(Some(3), Call, None, &["FR-02", "FR-03", "F-04a", "K-16", "K-28"]) },
     FailureDef { code: codes::SLAB_LINES_OVERLAP, element: "floor,ceiling,roof", reference: r(Some(3), Call, None, &["FR-02", "FR-03", "F-04a"]) },

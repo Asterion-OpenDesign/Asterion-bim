@@ -197,6 +197,15 @@ fn enabled_default() -> bool {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ViewGraphics {
     pub hidden_categories: BTreeSet<String>,
+    /// The categories the template hides by default (`DEFAULT_HIDDEN_CATEGORIES`) that the person has shown. ENGINE CHOICE:
+    /// the reference stores one set of hidden categories that a new view starts with the template's categories in; the
+    /// engine keeps that start as a rule and stores the departures from it.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub shown_categories: BTreeSet<String>,
+    /// The category classes (tabs of the dialog: `model`, `annotation`, `analytical`, `imported`) the view hides as a
+    /// whole. ENGINE CHOICE (see `view_categories`).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub hidden_classes: BTreeSet<String>,
     pub category_overrides: BTreeMap<String, Ogs>,
     pub element_overrides: BTreeMap<ElementId, Ogs>,
     pub filters: Vec<AppliedFilter>,
@@ -482,6 +491,8 @@ fn next_name(m: &BimModel, prefix: &str, start: u32) -> String {
 /// 30) and agrees with that basis for a box whose far side is positive (x' = Z x Y = -x for x = Y x Z; the API getters
 ///     apply the managed hop leaves open). no measurement covers it.
 pub fn add_section_view(m: &mut BimModel, cx: &mut TxnContext<'_>, name: Option<&str>, origin: V3, x: V3, y: V3, z: V3, min: V3, max: V3) -> Result<ElementId, Failure> {
+    // QA: numbers the file format cannot hold are refused at the call (`input.invalid_number`)
+    crate::ops::require_numbers("The section", &[origin, x, y, z, min, max].iter().flat_map(|p| p.iter().copied()).collect::<Vec<f64>>())?;
     // OBSERVED: a box with no width, or a vertical view direction, does not make a valid frame: the basis vectors have unit
     // length within 1e-9 and are pairwise perpendicular within 1e-9
     let orthonormal = |a: V3, b: V3| (dot(a, a).sqrt() - 1.0).abs() < 1e-9 && dot(a, b).abs() < 1e-9;
@@ -535,6 +546,7 @@ fn letter(i: u8) -> char {
 /// `ElevationMarker.CreateElevationMarker(type, point, scale)`.
 pub fn create_marker(m: &mut BimModel, cx: &mut TxnContext<'_>, plan: ElementId, point: V3, scale: u32) -> Result<ElementId, Failure> {
     m.view(plan)?;
+    crate::ops::require_numbers("The elevation marker", &point)?;
     let id = cx.new_id();
     m.docs.markers.insert(id, ElevationMarker { id, point, scale, plan, views: BTreeMap::new() });
     Ok(id)
@@ -594,6 +606,7 @@ pub fn add_elevation_view(m: &mut BimModel, cx: &mut TxnContext<'_>, marker: Ele
 /// parent) and the order.
 pub fn add_callout_view(m: &mut BimModel, cx: &mut TxnContext<'_>, parent: ElementId, p0: [f64; 2], p1: [f64; 2], detail: bool, name: Option<&str>) -> Result<ElementId, Failure> {
     let pv = m.view(parent)?.clone();
+    crate::ops::require_numbers("The callout", &[p0[0], p0[1], p1[0], p1[1]])?;
     if (p0[0] - p1[0]).abs() < 1e-9 && (p0[1] - p1[1]).abs() < 1e-9 {
         return Err(bad("point1 and point2 do not differ when projected onto a plane perpendicular to the view direction."));
     }
@@ -768,6 +781,7 @@ pub fn set_doc_property(m: &mut BimModel, id: ElementId, key: &str, text: &str, 
 /// and to the view data point, the viewer's bounded space is translated by it (the origin moves, the directions do not) and
 /// so is every leader of the marker.
 pub fn move_view(m: &mut BimModel, id: ElementId, d: V3) -> Result<(), Failure> {
+    crate::ops::require_numbers("The move", &d)?;
     let v = m.docs.views.get_mut(&id).ok_or_else(|| not_found(id, "view"))?;
     v.origin = add(v.origin, d);
     Ok(())
@@ -777,6 +791,7 @@ pub fn move_view(m: &mut BimModel, id: ElementId, d: V3) -> Result<(), Failure> 
 /// direction turn; the crop box in its own frame does not). A rotation transform at the line's origin about its direction
 /// by the angle, applied to the whole section.
 pub fn rotate_view(m: &mut BimModel, id: ElementId, center: [f64; 2], angle: f64) -> Result<(), Failure> {
+    crate::ops::require_numbers("The rotation", &[center[0], center[1], angle])?;
     let v = m.docs.views.get_mut(&id).ok_or_else(|| not_found(id, "view"))?;
     let (s, c) = angle.sin_cos();
     let rot = |p: V3| [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]];
@@ -856,6 +871,8 @@ pub fn effective_graphics<'a>(m: &'a BimModel, view: ElementId) -> std::borrow::
     let mut g = own_graphics(m, view).into_owned();
     let p = own_graphics(m, owner);
     g.hidden_categories = p.hidden_categories.clone();
+    g.shown_categories = p.shown_categories.clone();
+    g.hidden_classes = p.hidden_classes.clone();
     g.filters = p.filters.clone();
     Cow::Owned(g)
 }
@@ -877,7 +894,49 @@ pub fn view_has_template(m: &BimModel, view: ElementId) -> bool {
 
 /// Categories a view can hide (the ones the observation reads; a category that is not known cannot be hidden).
 pub fn can_hide(category: &str) -> bool {
-    GRAPHICS_CATEGORIES.contains(&category) || DEFAULT_HIDDEN_CATEGORIES.contains(&category)
+    GRAPHICS_CATEGORIES.contains(&category) || DEFAULT_HIDDEN_CATEGORIES.contains(&category) || crate::view_categories::def(category).is_some()
+}
+
+/// Whether the view shows the category (the row, its parents and its class all keep it), as `View.GetCategoryHidden` negated reads
+/// it for a category the dialog lists. A category the engine does not list reads as shown.
+pub fn category_hidden(m: &BimModel, view: ElementId, category: &str) -> bool {
+    let g = effective_graphics(m, view);
+    if crate::view_categories::def(category).is_some() {
+        return crate::view_categories::is_hidden(&g, category);
+    }
+    g.hidden_categories.contains(category)
+}
+
+/// Hides or shows a whole category class (a tab of the dialog) in a view. ENGINE CHOICE; a view with a template refuses it
+/// like a category (category-class parameter lock).
+pub fn set_class_hidden(m: &mut BimModel, view: ElementId, tab: crate::view_categories::Tab, hidden: bool) -> Result<(), Failure> {
+    if view_has_template(m, view) {
+        return Err(bad("Category cannot be hidden."));
+    }
+    let owner = graphics_owner(m, view);
+    let g = graphics_mut(m, owner)?;
+    if hidden {
+        g.hidden_classes.insert(tab.code().to_owned());
+    } else {
+        g.hidden_classes.remove(tab.code());
+    }
+    Ok(())
+}
+
+/// A view with a template refuses it; a dependent view writes its primary's list.
+pub fn set_filter_list(m: &mut BimModel, view: ElementId, list: Vec<AppliedFilter>) -> Result<(), Failure> {
+    if view_has_template(m, view) {
+        return Err(bad("Category cannot be hidden."));
+    }
+    for f in &list {
+        if !m.docs.filters.contains_key(&f.filter) {
+            return Err(not_found(f.filter, "filter"));
+        }
+        check_ogs(&f.ogs)?;
+    }
+    let owner = graphics_owner(m, view);
+    graphics_mut(m, owner)?.filters = list;
+    Ok(())
 }
 
 /// `View.SetCategoryHidden`.
@@ -889,11 +948,16 @@ pub fn set_category_hidden_in_view(m: &mut BimModel, view: ElementId, category: 
         return Err(bad("Category cannot be hidden."));
     }
     let owner = graphics_owner(m, view);
+    let default_hidden = crate::view_categories::def(category).map_or(false, |d| d.default_hidden);
     let g = graphics_mut(m, owner)?;
     if hidden {
         g.hidden_categories.insert(category.to_owned());
+        g.shown_categories.remove(category);
     } else {
         g.hidden_categories.remove(category);
+        if default_hidden {
+            g.shown_categories.insert(category.to_owned());
+        }
     }
     Ok(())
 }
@@ -916,6 +980,10 @@ pub fn check_ogs(o: &Ogs) -> Result<(), Failure> {
 pub fn set_category_overrides(m: &mut BimModel, view: ElementId, category: &str, ogs: Ogs) -> Result<(), Failure> {
     check_ogs(&ogs)?;
     if !can_hide(category) {
+        return Err(bad("Category cannot be overridden."));
+    }
+    // And: a category a template controls is neither hidden nor overridden in the view (a template itself is edited freely)
+    if !m.docs.templates.contains_key(&view) && view_has_template(m, view) {
         return Err(bad("Category cannot be overridden."));
     }
     // OBSERVED (one case): an override of the Grids category (a projection colour) reads back as none. ENGINE CHOICE: the
@@ -992,7 +1060,18 @@ pub fn supersede(base: &Ogs, by: &Ogs) -> Ogs {
 /// same field rule, so element over filter over category.
 pub fn effective_overrides(m: &BimModel, view: ElementId, id: ElementId) -> Ogs {
     let g = effective_graphics(m, view);
-    let mut o = category_name(m, id).and_then(|c| g.category_overrides.get(c)).cloned().unwrap_or_default();
+    // the category's override, a subcategory's laid over its parent's
+    let mut o = Ogs::default();
+    if let Some(c) = category_name(m, id) {
+        let mut chain = crate::view_categories::ancestors(c);
+        chain.reverse();
+        chain.push(c);
+        for n in chain {
+            if let Some(x) = g.category_overrides.get(n) {
+                o = supersede(&o, x);
+            }
+        }
+    }
     let mut filt: Option<Ogs> = None;
     for af in g.filters.iter().rev() {
         if !af.enabled {
@@ -1394,24 +1473,7 @@ pub fn in_section_with(m: &BimModel, v: &DocView, id: ElementId, known_box: Opti
 /// The category name of a model element as the view graphics name it (the keys of `GRAPHICS_CATEGORIES`), or `None`
 /// for an element that is not a model element of a known category.
 pub fn category_name(m: &BimModel, id: ElementId) -> Option<&'static str> {
-    if let Some(c) = crate::schedules::category_of_element(m, id) {
-        return Some(c);
-    }
-    if m.grids.contains_key(&id) {
-        Some("Grids")
-    } else if m.levels.contains_key(&id) {
-        Some("Levels")
-    } else if m.columns.contains_key(&id) {
-        Some("Columns")
-    } else if m.stairs.stairs.contains_key(&id) {
-        Some("Stairs")
-    } else if m.docs.views.contains_key(&id) {
-        Some("Sections")
-    } else if m.annot.dims.contains_key(&id) {
-        Some("Dimensions")
-    } else {
-        None
-    }
+    crate::view_categories::category_of(m, id)
 }
 
 /// Whether a view filter selects an element: its category is one of the filter's and its rule holds (OBSERVED: a wall
@@ -1459,11 +1521,15 @@ pub fn hidden_by_graphics(m: &BimModel, view: ElementId, id: ElementId) -> bool 
     if m.views.get(&view).map_or(false, |v| v.hidden_elements.contains(&id)) {
         return true;
     }
-    let g = effective_graphics(m, view);
-    if g.hidden_categories.is_empty() && g.temp_hidden.is_empty() && g.isolated.is_none() && g.filters.is_empty() {
+    hidden_by_rules(m, &effective_graphics(m, view), id)
+}
+
+/// The rules part of [`hidden_by_graphics`]: category, class, temporary hide, isolate, filters.
+fn hidden_by_rules(m: &BimModel, g: &ViewGraphics, id: ElementId) -> bool {
+    if !crate::view_categories::hides_any(g) && g.temp_hidden.is_empty() && g.isolated.is_none() && g.filters.is_empty() {
         return false;
     }
-    if category_name(m, id).map_or(false, |c| g.hidden_categories.contains(c)) || g.temp_hidden.contains(&id) {
+    if category_name(m, id).map_or(false, |c| crate::view_categories::is_hidden(g, c)) || g.temp_hidden.contains(&id) {
         return true;
     }
     if g.isolated.as_ref().map_or(false, |iso| !iso.contains(&id)) {
@@ -1473,25 +1539,23 @@ pub fn hidden_by_graphics(m: &BimModel, view: ElementId, id: ElementId) -> bool 
 }
 
 /// The ids of every model element the graphics of `view` hide (see [`hidden_by_graphics`]): what a drawing of the view
-/// adds to the view's own hidden set.
+/// adds to the view's own hidden set. It walks every collection that holds an element of a listed category
+/// ([`crate::view_categories::for_each_element`]), so a hidden category leaves the plan, the sections and the 3D view alike.
 pub fn graphics_hidden_set(m: &BimModel, view: ElementId) -> BTreeSet<ElementId> {
     let g = effective_graphics(m, view);
-    let own_hidden = m.docs.graphics.get(&view).map_or(true, |g| g.hidden.is_empty());
-    if own_hidden && g.hidden_categories.is_empty() && g.temp_hidden.is_empty() && g.isolated.is_none() && g.filters.is_empty() {
+    let own = m.docs.graphics.get(&view);
+    let own_hidden = own.map_or(true, |g| g.hidden.is_empty());
+    if own_hidden && !crate::view_categories::hides_any(&g) && g.temp_hidden.is_empty() && g.isolated.is_none() && g.filters.is_empty() {
         return BTreeSet::new();
     }
-    m.walls
-        .keys()
-        .chain(m.hosted_instances.keys())
-        .chain(m.floors.keys())
-        .chain(m.rooms.keys())
-        .chain(m.grids.keys())
-        .chain(m.levels.keys())
-        .chain(m.columns.keys())
-        .chain(m.stairs.stairs.keys())
-        .copied()
-        .filter(|id| hidden_by_graphics(m, view, *id))
-        .collect()
+    let view_hidden = m.views.get(&view).map(|v| &v.hidden_elements);
+    let mut out = BTreeSet::new();
+    crate::view_categories::for_each_element(m, |id, _| {
+        if own.map_or(false, |o| o.hidden.contains(&id)) || view_hidden.map_or(false, |h| h.contains(&id)) || hidden_by_rules(m, &g, id) {
+            out.insert(id);
+        }
+    });
+    out
 }
 
 #[cfg(test)]

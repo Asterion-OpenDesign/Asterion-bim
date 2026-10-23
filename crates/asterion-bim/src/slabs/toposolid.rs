@@ -116,6 +116,8 @@ pub fn create_toposolid(
     profile: Vec<[f64; 2]>,
 ) -> Result<ElementId, Failure> {
     m.level(level)?;
+    let xyz: Vec<f64> = points.iter().flat_map(|p| p.iter().copied()).chain(profile.iter().flat_map(|p| p.iter().copied())).collect();
+    crate::ops::require_numbers("The toposolid", &xyz)?;
     if points.is_empty() && profile.is_empty() {
         return Err(bad(codes::TOPOSOLID_INVALID, "The boundary loops are empty, so they cannot form a boundary."));
     }
@@ -137,6 +139,7 @@ pub fn create_toposolid(
 /// Level; both before the sketch is made. No containment test is made in that operation (the commit-time error above is the
 /// reference product's, measured).
 pub fn create_subdivision(m: &mut BimModel, cx: &mut TxnContext<'_>, host: ElementId, profile: Vec<[f64; 2]>) -> Result<ElementId, Failure> {
+    crate::ops::require_numbers("The subdivision", &profile.iter().flat_map(|p| p.iter().copied()).collect::<Vec<f64>>())?;
     let Some(h) = m.docs.toposolids.get(&host) else {
         return Err(Failure::error(codes::NOT_FOUND, "No such toposolid.").on(&[host]));
     };

@@ -52,9 +52,16 @@ pub struct RunType {
     pub nosing_length: f64,
     pub has_risers: bool,
     pub has_treads: bool,
+    /// OBSERVED on, round 24: the template's run types are slanted.
+    #[serde(default = "slanted_by_default")]
+    pub riser_slanted: bool,
     pub is_monolithic: bool,
     pub structural_depth: f64,
     pub total_depth: f64,
+}
+
+fn slanted_by_default() -> bool {
+    true
 }
 
 /// What a stairs type carries besides the parameters of [`StairsTypeParams`].
@@ -163,6 +170,16 @@ pub struct PathRailing {
     pub path: Vec<(Vec2, Vec2)>,
 }
 
+/// One stored baluster: where it stands and which family symbol it is (the importer's data; the symbol is opaque).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BalusterInstance {
+    /// The centre of its base, metres.
+    pub position: [f64; 3],
+    /// Rotation about the vertical axis, radians.
+    pub rotation: f64,
+    pub symbol: u64,
+}
+
 /// All the scene state of the stairs slice (one field of `BimModel`).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct StairsScene {
@@ -178,6 +195,10 @@ pub struct StairsScene {
     pub railing_types: BTreeMap<ElementId, RailingType>,
     #[serde(default)]
     pub path_railings: BTreeMap<ElementId, PathRailing>,
+    /// The balusters a stored railing carries (one placement per baluster). A railing with an entry here is drawn with
+    /// exactly these; one without is laid out by Spec RAIL-BALUSTER-01.
+    #[serde(default)]
+    pub baluster_instances: BTreeMap<ElementId, Vec<BalusterInstance>>,
     /// The stairs type a new stairs gets when none is given: the one the last stairs was changed to (OBSERVED, two stairs
     /// made without a type after one made with a wide type took the wide type; it could as well be the last type
     /// duplicated).
@@ -193,7 +214,8 @@ impl StairsScene {
             && self.landings.is_empty()
             && self.railing_types.is_empty()
             && self.path_railings.is_empty()
-        && self.default_type.is_none()
+            && self.baluster_instances.is_empty()
+            && self.default_type.is_none()
     }
 
     /// The highest id this scene holds.
@@ -284,6 +306,13 @@ const TEMPLATE_TYPES: [TemplateType; 3] = [
     },
 ];
 
+/// The assembled template run type's `(tread thickness, riser thickness, nosing length)` in metres (OBSERVED): what a
+/// stairs whose type has no run type of its own is built with.
+pub fn template_run_dims() -> (f64, f64, f64) {
+    let t = &TEMPLATE_TYPES[0];
+    (t.tread_thickness, t.riser_thickness, t.nosing)
+}
+
 fn ensure_run_type(m: &mut BimModel, cx: &mut TxnContext<'_>, t: &TemplateType) -> ElementId {
     if let Some(r) = m.stairs_scene.run_types.values().find(|r| r.name == t.run_type) {
         return r.id;
@@ -299,6 +328,7 @@ fn ensure_run_type(m: &mut BimModel, cx: &mut TxnContext<'_>, t: &TemplateType) 
             nosing_length: t.nosing,
             has_risers: t.treads_and_risers,
             has_treads: t.treads_and_risers,
+            riser_slanted: true,
             is_monolithic: t.monolithic_run,
             structural_depth: t.structural_depth,
             total_depth: t.structural_depth,

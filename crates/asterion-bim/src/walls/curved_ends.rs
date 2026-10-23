@@ -621,7 +621,7 @@ pub(crate) fn apply(model: &BimModel, w: &Wall, s: &mut crate::regen::WallState)
         None => {}
     }
     s.arc_bbox = Some((asterion_geom::Vec3::new(lo.x, lo.y, s.base_z), asterion_geom::Vec3::new(hi.x, hi.y, s.top_z)));
-    if l.polygon.len() >= 3 {
+    if l.polygon.len() >= 3 && s.top_z > s.base_z {
         let prism = Prism::new(l.polygon.clone(), s.base_z, s.top_z);
         s.unjoined_solid = Some(prism.clone());
         s.solid = Some(prism);

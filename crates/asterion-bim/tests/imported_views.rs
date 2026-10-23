@@ -133,8 +133,8 @@ fn a_view_whose_box_is_not_a_frame_says_why_it_cannot_be_drawn() {
 fn the_model_names_the_elements_it_has_no_body_for() {
     let s = scene();
     let gaps = asterion_bim::element_geometry::model_gaps(s.doc.model());
-    let has = |what: &str| gaps.iter().any(|(w, n, r)| w == what && *n >= 1 && r.contains("OQ-STAIR-GEOM"));
-    assert!(has("stairs") && has("stair runs"), "{gaps:?}");
+    // the scene's stairs and run have a body now: no gap names them; what the registry cannot build is still listed (nothing silent)
+    assert!(!gaps.iter().any(|(w, _, _)| w == "stairs" || w == "stair runs"), "{gaps:?}");
 }
 
 /// The cheap prefilter of the collector (`near_view`) must never drop what the full test keeps: every view of the scene, with the filter

@@ -11,7 +11,7 @@ behaviour that has been observed or only assumed is labelled `OBSERVED`, `ASSUME
 
 Open questions are listed in [open-questions.md](../open-questions.md).
 
-57 rules.
+59 rules.
 
 ## Spec BRW-01
 
@@ -451,6 +451,27 @@ What the code says under this id:
 
 Cited in the code 25 times.
 
+## Spec S-01f
+
+WHAT THE NATIVE STAIRS ELEMENT ANSWERS FOR THE COMPARED READ-OUTS (elevations, height, riser and tread data, stories, supports, type). (0) Binding: the managed layer Stai...
+
+What the code says under this id:
+
+* The number of treads of a run from its riser count (Spec S-01f: the risers, less one when it ends with a riser, plus one when it does not begin with one). (`asterion-bim/src/vertical/stair_solids.rs`)
+* Spec S-01f (`asterion-bim/src/vertical/stair_solids.rs`)
+
+Cited in the code 2 times.
+
+## Spec S-01h
+
+WHAT A STAIRS RUN TYPE ANSWERS (has risers / has treads / is monolithic, nosing length, riser and tread thickness, structural depth, total depth). Persisted fields of the...
+
+What the code says under this id:
+
+* Spec S-01h. (`asterion-bim/src/vertical/stair_import.rs`)
+
+Cited in the code 1 time.
+
 ## Spec SCALE-01
 
 What Scale does to a wall's location curve: the line is scaled about the picked origin keeping its middle point scaled and its length multiplied by the factor; a result shorter than the tolerance posts the 'too short' failure
@@ -574,11 +595,11 @@ Cited in the code 5 times.
 
 What the code says under this id:
 
-* WHICH elements are drawn and as what (cut / projection / beyond) is the view classifier's decision (`crate::views`, Spec V-02, V-03). (`asterion-bim/src/viewing/plan_graphics.rs`)
-* How the plan classifies a column: by its vertical span against the view's range and crop, exactly as it classifies a wall (Spec V-02 band assignment, `views::classify`). (`asterion-bim/src/viewing/view_visibility.rs`)
-* Spec V-02: an element is IN the cut plane when `zmin < C - eps` and `C - eps <= zmax` (eps = 1e-9 ft), for both plan classes - so an element whose top is exactly at the cut plane IS cut. (`asterion-bim/src/viewing/views.rs`)
+* Spec V-02 decides which of these a part is ([`crate::views::classify_plan_condition`]). (`asterion-bim/src/vertical/stair_solids.rs`)
+* The range planes of a plan view as the classifier of Spec V-02 takes them; (`asterion-bim/src/vertical/stair_solids.rs`)
+* The runs a plan view draws: a run whose steps appear in the view's range (Spec V-02, [`plan_linework`]) and, for a run the engine has no solid for (a spiral or sketched run, a monolithic one), the plan of its base level - the presentation the plan had before the stairs had a body. (`asterion-bim/src/vertical/stair_solids.rs`)
 
-Cited in the code 19 times.
+Cited in the code 23 times.
 
 ## Spec V-03
 

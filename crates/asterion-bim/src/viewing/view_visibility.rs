@@ -263,11 +263,19 @@ pub fn plan_manifest(m: &BimModel, view: &View) -> Result<BTreeMap<ElementId, &'
             }
         }
     }
-    for r in m.stairs.runs.values() {
-        if let Some(s) = m.stairs.stairs.get(&r.stairs) {
-            if on_level(gen, s.base_level) && !ev.hidden_elements.contains(&s.id) {
-                out.insert(r.id, "location line");
-            }
+    // stairs and railings: the line work of their solids as the view range shows it (`stair_solids::plan_linework`, Spec
+    // V-02), and the location line of a run the engine has no solid for
+    let stair_lines = crate::stair_solids::plan_linework(m, &ev);
+    for sg in &stair_lines {
+        out.insert(sg.element, "stair line work");
+        if let Some(owner) = m.stairs.runs.get(&sg.element).map(|r| r.stairs).or_else(|| m.stairs.landings.get(&sg.element).map(|l| l.stairs)) {
+            out.insert(owner, "stair line work");
+        }
+    }
+    for id in crate::stair_solids::plan_drawn_runs(m, &ev) {
+        out.entry(id).or_insert("location line");
+        if let Some(s) = m.stairs.runs.get(&id).map(|r| r.stairs) {
+            out.entry(s).or_insert("location line");
         }
     }
     for r in m.rooms.values() {
@@ -313,7 +321,7 @@ fn base_diagnosis(m: &BimModel, view: ElementId, element: ElementId) -> Diagnosi
         rule: String::new(),
         stages: Vec::new(),
         geometry: if class.is_some() { g.label() } else { "no such element".into() },
-        geometry_signature: (class.is_some() && matches!(g, Geometry::Solid(_) | Geometry::Void(_))).then(|| element_geometry::signature(&g)),
+        geometry_signature: (class.is_some() && matches!(g, Geometry::Solid(_) | Geometry::Void(_) | Geometry::Parts(_))).then(|| element_geometry::signature(&g)),
         derived: "derived on demand: nothing between the model and this answer is cached",
         note: String::new(),
     }
@@ -455,7 +463,6 @@ fn plan(m: &BimModel, v: &View, element: ElementId, class: ElementClass, geometr
         ElementClass::Ceiling | ElementClass::Roof => Some("ceilings and roofs are not classified in plan views: their appearance was never measured (Spec V-02's mode m for their categories is unspecified)"),
         ElementClass::Toposolid => Some("the plan draws no toposolid line work"),
         ElementClass::WallSweep | ElementClass::WallReveal => Some("the plan draws no wall sweep or reveal line work"),
-        ElementClass::Stairs | ElementClass::StairsLanding | ElementClass::StairsRailing => Some("the plan draws only the location line of each stairs run (OQ-STAIR-GEOM)"),
         _ => None,
     };
     if let Some(r) = hidden_reason(m, v.id, element) {
@@ -524,7 +531,12 @@ fn plan(m: &BimModel, v: &View, element: ElementId, class: ElementClass, geometr
             d.rule = format!("its host wall is not drawn in this plan (a hosted insert is drawn with its host): {}", hd.map_or(String::new(), |h| h.rule));
             w.stages.push(Stage { name: "host", passed: false, detail: d.rule.clone() });
         }
-        ElementClass::StairsRun | ElementClass::Room | ElementClass::RoomSeparation => {
+        ElementClass::Stairs | ElementClass::StairsRun | ElementClass::StairsLanding | ElementClass::StairsRailing => {
+            d.status = Status::OutsideViewRange;
+            d.rule = "the plan's view range (cut plane, top and bottom clip, view depth) leaves its solids out (Spec V-02 band assignment)".into();
+            w.stages.push(Stage { name: "view range", passed: false, detail: d.rule.clone() });
+        }
+        ElementClass::Room | ElementClass::RoomSeparation => {
             d.status = Status::OutsideViewRange;
             d.rule = "it belongs to another level than the plan's generating level".into();
             w.stages.push(Stage { name: "level", passed: false, detail: d.rule.clone() });
@@ -733,9 +745,14 @@ fn docview(m: &BimModel, dv: &DocView, element: ElementId, class: ElementClass, 
             return w.stages;
         }
     };
-    let drawn = figures.iter().any(|f| f.element == element || f.holes.iter().any(|h| h.0 == element));
+    // a stairs is drawn by its components' figures (its runs, landings and, under its own id, its stringers)
+    let family: Vec<ElementId> = std::iter::once(element)
+        .chain(m.stairs.runs_of(element).into_iter().map(|r| r.id))
+        .chain(m.stairs.landings.values().filter(|l| l.stairs == element).map(|l| l.id))
+        .collect();
+    let drawn = figures.iter().any(|f| family.contains(&f.element) || f.holes.iter().any(|h| h.0 == element));
     if drawn {
-        let cut = figures.iter().any(|f| f.cut && (f.element == element || f.holes.iter().any(|h| h.0 == element)));
+        let cut = figures.iter().any(|f| f.cut && (family.contains(&f.element) || f.holes.iter().any(|h| h.0 == element)));
         w.pass("projection", if cut { "cut by the section plane" } else { "projected behind the plane" });
         w.pass("submission", "in the line work the view hands to the renderer");
         d.status = Status::Visible;
@@ -765,13 +782,13 @@ fn docview(m: &BimModel, dv: &DocView, element: ElementId, class: ElementClass, 
         return w.stages;
     }
     // in the collector, with a body, and no figure: in front of the plane, or the projection lost it
-    let corners: Vec<f64> = geometry.solids().iter().flat_map(|b| b.corners()).map(|c| docviews::to_local(dv, c)[2]).collect();
+    let corners: Vec<f64> = geometry.corners().into_iter().map(|c| docviews::to_local(dv, c)[2]).collect();
     let (lo, hi) = corners.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), z| (l.min(*z), h.max(*z)));
     if hi > 1e-9 && lo >= -1e-9 {
         d.status = Status::OutsideClippingDepth;
         d.rule = "its body lies wholly in front of the section plane (the viewer's side): a section draws what is behind its plane".into();
     } else {
-        let xs: Vec<f64> = geometry.solids().iter().flat_map(|b| b.corners()).map(|c| docviews::to_local(dv, c)[0]).collect();
+        let xs: Vec<f64> = geometry.corners().into_iter().map(|c| docviews::to_local(dv, c)[0]).collect();
         let (xl, xh) = xs.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), x| (l.min(*x), h.max(*x)));
         if xh - xl < 1e-9 {
             d.status = Status::SeenEdgeOn;
@@ -800,6 +817,7 @@ pub fn report(m: &BimModel, view: ElementId) -> Vec<Diagnosis> {
     ids.extend(m.stairs.runs.keys());
     ids.extend(m.stairs.landings.keys());
     ids.extend(m.stairs.railings.keys());
+    ids.extend(m.stairs_scene.path_railings.keys());
     ids.extend(m.rooms.keys());
     ids.extend(m.levels.keys());
     ids.extend(m.grids.keys());

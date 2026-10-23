@@ -139,6 +139,11 @@ pub const MIN_OPENING_EXTENT_M: f64 = 0.0;
 /// Stable ASTERION failure codes (never copies of reference-product identifiers).
 pub mod codes {
     pub const CURVE_TOO_SHORT: &str = "geom.curve_too_short";
+    /// A number the engine cannot calculate with: not finite (NaN, infinity) or larger than
+    /// [`crate::ops::NUMERIC_LIMIT_M`]. Raised at the call, before anything is stored, so a model never holds a value that
+    /// cannot be saved (the file format writes it as null and the document would no longer open). ASTERION's own
+    /// numeric-safety guard, not a rule read from the reference product.
+    pub const INVALID_NUMBER: &str = "input.invalid_number";
     pub const HEIGHT_OUT_OF_RANGE: &str = "wall.height_out_of_range";
     /// POSTED AT COMMIT, severity Error: the wall is not valid or is too short, or its geometry regeneration returned an
     /// error. The rule decides the channel (the shared post operation posts for the commit. UNKNOWN: which geometric
@@ -469,6 +474,7 @@ pub mod codes {
 
     pub const ALL: &[&str] = &[
         CURVE_TOO_SHORT,
+        INVALID_NUMBER,
         HEIGHT_OUT_OF_RANGE,
         CANNOT_MAKE_WALL,
         BELOW_MIN_HEIGHT,
@@ -691,7 +697,8 @@ mod tests {
         // `column.duplicate_type_name`, `column.bad_attachment`. 89 -> 90: `curtain.invalid`. 90 -> 92:
         // `stairs.top_not_above_base`, `railing.stairs_has_railings` (observations). 92 -> 111: refplane, modelline, group,
         // dimension, tag, text note and sweep codes. 111 -> 112: `level.duplicate_name` (observation). 112 -> 115:
-        // `sheet.number_empty`, `sheet.number_duplicated`, `tag.not_pasted`.
-        assert_eq!(codes::ALL.len(), 115);
+        // `sheet.number_empty`, `sheet.number_duplicated`, `tag.not_pasted`. 115 -> 116: `input.invalid_number` (an
+        // ASTERION input check of non-finite or absurd numbers, not a reference failure).
+        assert_eq!(codes::ALL.len(), 116);
     }
 }

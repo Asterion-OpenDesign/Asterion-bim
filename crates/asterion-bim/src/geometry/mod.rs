@@ -7,3 +7,4 @@ pub mod element_geometry;
 pub mod mesh3d;
 pub mod boxtopo;
 pub mod sketch;
+pub mod polysolid;

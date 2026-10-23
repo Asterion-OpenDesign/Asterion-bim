@@ -21,6 +21,7 @@
 //! and an element id per triangle (3D picking).
 
 use crate::element_geometry::{self, Body, ElementClass, Geometry, WallCut};
+use crate::polysolid::{Part, PolySolid};
 use crate::model::{BimModel, View};
 use asterion_core::ElementId;
 use asterion_geom::Vec2;
@@ -71,7 +72,7 @@ fn signed_area(p: &[Vec2]) -> f64 {
 
 /// Ear-clipping triangulation of a simple polygon given counter-clockwise. Falls back to a fan
 /// when no ear is found (a degenerate or self-touching outline), so a solid is never dropped.
-fn triangulate(poly: &[Vec2]) -> Vec<[usize; 3]> {
+pub(crate) fn triangulate(poly: &[Vec2]) -> Vec<[usize; 3]> {
     let n = poly.len();
     let mut idx: Vec<usize> = (0..n).collect();
     let mut out = Vec::with_capacity(n.saturating_sub(2));
@@ -261,6 +262,19 @@ pub fn push_body(mesh: &mut Mesh3d, body: &Body, colour: [f32; 3]) {
     mesh.solids += 1;
 }
 
+/// Appends a polyhedron: its triangles and its crease edges.
+pub fn push_polysolid(mesh: &mut Mesh3d, solid: &PolySolid, colour: [f32; 3]) {
+    for (t, n) in solid.triangles() {
+        for p in t {
+            push_vertex(&mut mesh.triangles, p, n, colour);
+        }
+    }
+    for (a, b) in solid.crease_edges(CREASE_DEGREES) {
+        push_edge(&mut mesh.edges, a, b);
+    }
+    mesh.solids += 1;
+}
+
 /// Appends the prism of `footprint` between `z0` and `z1`.
 pub fn push_prism(mesh: &mut Mesh3d, footprint: &[Vec2], z0: f64, z1: f64, colour: [f32; 3]) {
     if footprint.len() < 3 || !(z1 > z0) {
@@ -294,16 +308,17 @@ fn push_cut_edges(mesh: &mut Mesh3d, start: Vec2, dir: Vec2, half: f64, cut: &Wa
 }
 
 /// Adds one element's solids to the mesh, or records why it has none.
-fn append_element_mesh(model: &BimModel, id: ElementId, mesh: &mut Mesh3d, hosts: &BTreeSet<ElementId>, hidden: &BTreeSet<ElementId>) {
+fn append_element_mesh(model: &BimModel, id: ElementId, mesh: &mut Mesh3d, hosts: &BTreeSet<ElementId>, hidden: &BTreeSet<ElementId>, parts: crate::view_categories::PartFilter, styler: Option<&crate::override_style::ViewStyler>) {
     let class = match element_geometry::classify(model, id) {
         Some(c) => c,
         None => return,
     };
     let (tri0, edge0) = (mesh.triangles.len(), mesh.edges.len());
-    match element_geometry::geometry_of(model, id) {
+    match element_geometry::geometry_of_in(model, id, parts) {
         Geometry::Solid(bodies) => {
             let colour = element_geometry::class_tone(class);
-            let curtain_part_tone = |i: usize, total_glass: usize| if i < total_glass { element_geometry::tone::GLASS } else { element_geometry::tone::MULLION };
+            let tint = |c: [f32; 3]| styler.map_or(c, |s| s.mesh_colour(id, c));
+            let colour = tint(colour);
             match class {
                 ElementClass::Wall => {
                     let w = &model.walls[&id];
@@ -331,12 +346,24 @@ fn append_element_mesh(model: &BimModel, id: ElementId, mesh: &mut Mesh3d, hosts
                 }
                 ElementClass::CurtainWall => {
                     let grid = crate::curtains::grid_state(model, id).ok();
-                    let panels = grid.as_ref().map_or(0, |g| g.panels.iter().filter(|p| !p.empty).count());
+                    // the glass first, then the mullions (`element_geometry::curtain_parts`); a wall whose grid has no part is its envelope
+                    let split = element_geometry::curtain_parts(model, id).filter(|(g, m)| !(g.is_empty() && m.is_empty()));
+                    let glass = match (&split, parts.panels) {
+                        (Some((g, _)), true) => g.len(),
+                        _ => 0,
+                    };
                     for (i, b) in bodies.iter().enumerate() {
-                        push_body(mesh, b, curtain_part_tone(i, panels));
+                        let tone = if split.is_none() {
+                            colour
+                        } else if i < glass {
+                            tint(element_geometry::tone::GLASS)
+                        } else {
+                            tint(element_geometry::tone::MULLION)
+                        };
+                        push_body(mesh, b, tone);
                     }
                     // the grid lines, drawn as edges (a line without mullions has no body of its own)
-                    if let Some(g) = &grid {
+                    if let (Some(g), true) = (&grid, parts.is_all()) {
                         for line in g.u_lines.iter().chain(g.v_lines.iter()) {
                             if let Ok((a, b)) = g.line_curve(model, id, line) {
                                 push_edge(&mut mesh.edges, a, b);
@@ -351,7 +378,55 @@ fn append_element_mesh(model: &BimModel, id: ElementId, mesh: &mut Mesh3d, hosts
             mesh.ranges.push(ElementRange { element: id, tris: (tri0, mesh.triangles.len()), edges: (edge0, mesh.edges.len()) });
         }
         Geometry::NotGenerated(r) | Geometry::Failed(r) => mesh.gaps.push((id, r)),
-        Geometry::Void(_) | Geometry::Abstract(_) => {}
+        Geometry::Void(_) | Geometry::Abstract(_) | Geometry::Parts(_) => {}
+    }
+}
+
+/// One owner's polyhedral parts, as one range of the mesh.
+fn add_parts(mesh: &mut Mesh3d, owner: ElementId, parts: &[Part], tint: &dyn Fn(ElementId, [f32; 3]) -> [f32; 3]) {
+    let (tri0, edge0) = (mesh.triangles.len(), mesh.edges.len());
+    for p in parts {
+        push_polysolid(mesh, &p.solid, tint(owner, element_geometry::part_tone(p.role)));
+    }
+    mesh.elements.insert(owner);
+    mesh.ranges.push(ElementRange { element: owner, tris: (tri0, mesh.triangles.len()), edges: (edge0, mesh.edges.len()) });
+}
+
+/// Stairs and railings: each run, landing and railing is drawn under its own id and the stringers under the stairs' (the same ids the
+/// section and the diagnosis use). A component the engine cannot build is listed in `gaps` with the reason.
+fn add_stairs_and_railings(model: &BimModel, mesh: &mut Mesh3d, hidden: &BTreeSet<ElementId>, styler: Option<&crate::override_style::ViewStyler>) {
+    let tint = |id: ElementId, c: [f32; 3]| styler.map_or(c, |s| s.mesh_colour(id, c));
+    for s in model.stairs.stairs.keys().filter(|id| !hidden.contains(id)) {
+        let parts = crate::stair_solids::stairs_parts(model, *s);
+        let mut any = false;
+        for (owner, p) in &parts {
+            if *owner != *s && hidden.contains(owner) {
+                continue;
+            }
+            add_parts(mesh, *owner, p, &|id, c| tint(*s, tint(id, c)));
+            any = true;
+        }
+        if any {
+            mesh.elements.insert(*s);
+        }
+        let comps = model.stairs.runs_of(*s).into_iter().map(|r| r.id).chain(model.stairs.landings.values().filter(|l| l.stairs == *s).map(|l| l.id));
+        for c in comps.filter(|c| !hidden.contains(c) && !parts.iter().any(|(o, _)| o == c)) {
+            if let Geometry::NotGenerated(r) | Geometry::Failed(r) = element_geometry::geometry_of(model, c) {
+                mesh.gaps.push((c, r));
+            }
+        }
+        if !any {
+            if let Geometry::NotGenerated(r) | Geometry::Failed(r) = element_geometry::geometry_of(model, *s) {
+                mesh.gaps.push((*s, r));
+            }
+        }
+    }
+    for r in model.stairs.railings.keys().chain(model.stairs_scene.path_railings.keys()).filter(|id| !hidden.contains(id)) {
+        match element_geometry::geometry_of(model, *r) {
+            Geometry::Parts(p) => add_parts(mesh, *r, &p, &tint),
+            Geometry::NotGenerated(why) | Geometry::Failed(why) => mesh.gaps.push((*r, why)),
+            _ => {}
+        }
     }
 }
 
@@ -369,6 +444,8 @@ pub fn view_mesh(model: &BimModel, view: &View) -> Result<Mesh3d, asterion_core:
         return Ok(mesh);
     }
     let hidden = |id: &ElementId| view.hidden_elements.contains(id);
+    let parts = crate::view_categories::part_filter(model, view.id);
+    let styler = crate::override_style::ViewStyler::new(model, view.id);
     // every wall is regenerated: one wall index for the pass (same states, joins included)
     crate::joins::with_wall_index(model, || {
         let ids: Vec<ElementId> = model
@@ -383,9 +460,10 @@ pub fn view_mesh(model: &BimModel, view: &View) -> Result<Mesh3d, asterion_core:
             .collect();
         let hosts: BTreeSet<ElementId> = model.hosted_instances.values().map(|i| i.host).chain(model.wall_openings.values().map(|o| o.host)).collect();
         for id in ids {
-            append_element_mesh(model, id, &mut mesh, &hosts, &view.hidden_elements);
+            append_element_mesh(model, id, &mut mesh, &hosts, &view.hidden_elements, parts, styler.as_ref());
         }
     });
+    add_stairs_and_railings(model, &mut mesh, &view.hidden_elements, styler.as_ref());
     Ok(mesh)
 }
 

@@ -8,6 +8,8 @@ pub mod view_display;
 pub mod view_dup;
 pub mod view_names;
 pub mod view_visibility;
+pub mod view_categories;
+pub mod override_style;
 pub mod plan_graphics;
 pub mod section_graphics;
 pub mod docviews;

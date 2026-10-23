@@ -1659,6 +1659,9 @@ fn arc_override(model: &BimModel, w: &Wall, mut s: WallState) -> Result<WallStat
             Vec3::new(band.lo.x.min(rlo.x), band.lo.y.min(rlo.y), s.base_z),
             Vec3::new(band.hi.x.max(rhi.x), band.hi.y.max(rhi.y), s.top_z),
         ));
+        if !(s.top_z > s.base_z) {
+            return Ok(s);   // QA: no body for a height lost in rounding
+        }
         let prism = Prism::new(band.outline, s.base_z, s.top_z);
         s.unjoined_solid = Some(prism.clone());
         s.solid = Some(prism);
@@ -1981,6 +1984,10 @@ fn apply_arc_inserts(model: &BimModel, w: &Wall, s: &mut WallState) {
 
 /// `None` only for a path with no direction.
 fn straight_wall_prism(start: Vec2, end: Vec2, base_z: f64, top_z: f64, width: f64) -> Option<Prism> {
+    // QA: a height lost in rounding (1e-300 m on a level at 20 m) leaves a top that is not above the base: no body, not a panic
+    if !(top_z > base_z) {
+        return None;
+    }
     let profile =
         asterion_geom::wall_profile::StraightWallProfile::new(start, end, base_z, top_z - base_z, width).ok()?;
     Some(Prism::new(profile.plan_corners().to_vec(), base_z, top_z))

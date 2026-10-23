@@ -239,6 +239,40 @@ fn body_figures_as(v: &DocView, id: ElementId, b: &Body, side: Side) -> Vec<Figu
     }
 }
 
+/// The figures of the polyhedral parts of one element (stair steps, stringers, rails, balusters) in a vertical view: a part
+/// the plane crosses is CUT (the loops of the plane's section, in the view's frame), a part wholly behind it is PROJECTED
+/// (its outline seen from the viewer), a part in front of it is not drawn.
+pub fn part_figures(v: &DocView, id: ElementId, parts: &[element_geometry::Part]) -> Vec<Figure> {
+    let mut out = Vec::new();
+    for part in parts {
+        let zs: Vec<f64> = part.solid.vertices().iter().map(|c| local(v, *c)[2]).collect();
+        let loops = match side_of(zs.into_iter()) {
+            Side::Front => continue,
+            Side::Cut => part.solid.slice(v.origin, v.z).into_iter().map(|l| (true, l)).collect::<Vec<_>>(),
+            Side::Behind => part.solid.silhouette(v.z).into_iter().map(|l| (false, l)).collect::<Vec<_>>(),
+        };
+        for (cut, l) in loops {
+            let mut poly: Vec<[f64; 2]> = l.iter().map(|p| {
+                let q = local(v, *p);
+                [q[0], q[1]]
+            }).collect();
+            let n = poly.len();
+            if n < 3 {
+                continue;
+            }
+            let area: f64 = (0..n).map(|i| poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1]).sum::<f64>() * 0.5;
+            if area.abs() < 1e-12 {
+                continue;
+            }
+            if area < 0.0 {
+                poly.reverse();
+            }
+            out.push(Figure { element: id, cut, rect: bbox_of(&poly), holes: Vec::new(), poly: Some(poly) });
+        }
+    }
+    out
+}
+
 /// A cheap test that never rejects what [`docviews::in_section`] accepts: whether the plan footprint of a wall, a slab or a column can
 /// reach the crop box of a VERTICAL view along the view's two horizontal axes (local x and the depth). The collector regenerates every
 /// element it tests (a wall's body, a slab's geometry), which on a project of a thousand walls is most of a section's cost, and almost
@@ -335,11 +369,26 @@ pub fn section_figures_with(m: &BimModel, view: ElementId, prefilter: bool) -> R
         .chain(m.docs.toposolids.keys())
         .copied()
         .collect();
+    // a curtain wall loses its glass or its mullions with the categories of the view (`view_categories::part_filter`)
+    let parts = crate::view_categories::part_filter(m, view);
     for id in others {
         if !drawn(id) {
             continue;
         }
-        out.extend(element_figures(v, id, element_geometry::geometry_of(m, id).solids()));
+        out.extend(element_figures(v, id, element_geometry::geometry_of_in(m, id, parts).solids()));
+    }
+    // stairs and railings: polyhedral parts, drawn under the id of the component that owns them (the same ids as the 3D mesh)
+    for s in m.stairs.stairs.keys() {
+        for (owner, p) in crate::stair_solids::stairs_parts(m, *s) {
+            if drawn(owner) {
+                out.extend(part_figures(v, owner, &p));
+            }
+        }
+    }
+    for r in m.stairs.railings.keys().chain(m.stairs_scene.path_railings.keys()) {
+        if drawn(*r) {
+            out.extend(part_figures(v, *r, element_geometry::geometry_of(m, *r).parts()));
+        }
     }
     Ok(out)
 }
@@ -562,6 +611,17 @@ pub fn flatten(segs: &[Seg]) -> Vec<f32> {
     let mut out = Vec::with_capacity(segs.len() * 5);
     for s in segs {
         out.extend_from_slice(&[s.a[0] as f32, s.a[1] as f32, s.b[0] as f32, s.b[1] as f32, s.class]);
+    }
+    out
+}
+
+/// [`flatten`] with the graphic overrides of `view` (`override_style`): a segment of an element the view overrides takes the weight
+/// class that carries the override.
+pub fn flatten_in(m: &BimModel, view: ElementId, segs: &[Seg]) -> Vec<f32> {
+    let Some(styler) = crate::override_style::ViewStyler::new(m, view) else { return flatten(segs) };
+    let mut out = Vec::with_capacity(segs.len() * 5);
+    for s in segs {
+        out.extend_from_slice(&[s.a[0] as f32, s.a[1] as f32, s.b[0] as f32, s.b[1] as f32, styler.class_for(s.element, s.class)]);
     }
     out
 }

@@ -8,14 +8,20 @@ or a public source, never by an opinion.
 
 These identifiers appear in the text the engine gives when it refuses or limits something (`OQ-...`).
 
+* **OQ-GRID-OVERRIDE** (asterion-bim, limit): The reference's override of the Grids category read back as none in the only case measured.
+* **OQ-PARAM-API-STORAGE** (asterion-bim, limit): (when design options exist); the API answers ElementId.
+* **OQ-RAILING-PATH-KEYS** (asterion-bim, limit): The railing's path keys name no run or landing of its stairs.
 * **OQ-ROOM-SECTION** (asterion-bim, limit): A room is collected by a section but the engine draws nothing of it there.
 * **OQ-SLAB-ARC-LENGTH** (asterion-bim, assumed): Perimeter: exact arc length.
 * **OQ-SLAB-SHAPE** (asterion-bim, engine choice): A sloped slab cannot be shape edited.
 * **OQ-SLAB-SHAPE-BODY** (asterion-bim, limit): A shape-edited slab: the engine keeps its quantities, not its body.
 * **OQ-SPLIT-ARC** (asterion-bim, limit): Arc walls are not split by the engine.
-* **OQ-STAIR-GEOM** (asterion-bim, limit): The stairs module has no solid (treads, risers, stringers): only run location lines and quantities exist.
+* **OQ-STAIR-LANDING-BOUNDARY** (asterion-bim, limit): The landing has no boundary sketch loop (a landing made without one has no outline: OQ-STAIR-LANDING-BOUNDARY).
+* **OQ-STAIR-MONOLITHIC-SOLID** (asterion-bim, limit): A monolithic run has no solid: its structural body is not read.
+* **OQ-STAIR-RUN-STYLES** (asterion-bim, limit): A sketched run needs two boundary lines and at least two riser lines.
 * **OQ-TOPOSOLID-BODY** (asterion-bim, limit): A toposolid with surface points has a triangulated top: the engine reports its quantities, not a body.
 * **OQ-TRIMEXT-ARC** (asterion-bim, limit): An arc wall is not trimmed or extended by the engine.
+* **OQ-VIEW-TEMPLATE** (asterion-bim, limit): The view template's graphics rule this view; the engine reads the template's graphics while one is assigned.
 
 ## Marked UNKNOWN in the code
 

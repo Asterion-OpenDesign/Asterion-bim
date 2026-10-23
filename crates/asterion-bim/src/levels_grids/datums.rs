@@ -53,12 +53,19 @@ pub fn create_ref_plane(
     view: Option<ElementId>,
     name: Option<&str>,
 ) -> Result<ElementId, Failure> {
+    crate::ops::require_numbers("The reference plane", &[bubble[0], bubble[1], bubble[2], free[0], free[1], free[2], cut[0], cut[1], cut[2]])?;
     if length(sub(bubble, free)) < 1e-9 {
         return Err(bad(codes::REFPLANE_INVALID, "The two ends of a reference plane are the same point."));
     }
     let d = unit(sub(bubble, free));
     if length(cross(d, cut)) < 1e-9 {
         return Err(bad(codes::REFPLANE_INVALID, "The cut vector is parallel to the plane."));
+    }
+    // a plane belongs to a view that exists (QA: a view id that names nothing was stored and left a dangling reference)
+    if let Some(v) = view {
+        if !m.views.contains_key(&v) && !m.docs.views.contains_key(&v) {
+            return Err(Failure::error(codes::NOT_FOUND, "No such view.").on(&[v]));
+        }
     }
     let name = name.unwrap_or(DEFAULT_PLANE_NAME).to_owned();
     let id = cx.new_id();
@@ -187,6 +194,7 @@ pub fn create_model_line_on(m: &mut BimModel, cx: &mut TxnContext<'_>, start: V3
 /// those of its geometry curve in model coordinates, and a curve with none of the detail / view-specific / reference-line /
 /// by-points flags is the model-curve kind (1); the engine's model lines are straight, so their curve kind is a line.
 pub fn create_model_line(m: &mut BimModel, cx: &mut TxnContext<'_>, start: V3, end: V3, origin: V3, normal: V3) -> Result<ElementId, Failure> {
+    numbers(&[start, end, origin, normal])?;
     if length(sub(start, end)) < 1e-9 {
         return Err(bad(codes::MODEL_LINE_INVALID, "A model line has no length."));
     }
@@ -200,6 +208,10 @@ pub fn create_model_line(m: &mut BimModel, cx: &mut TxnContext<'_>, start: V3, e
 /// allowed; a curve off the plane is refused).
 pub fn set_model_curve(m: &mut BimModel, cx: &mut TxnContext<'_>, id: ElementId, geom: CurveGeom) -> Result<(), Failure> {
     let _ = cx;
+    match geom {
+        CurveGeom::Line { start, end } => numbers(&[start, end])?,
+        CurveGeom::Arc { start, end, mid } => numbers(&[start, end, mid])?,
+    }
     let (origin, normal) = {
         let c = m.annot.curves.get(&id).ok_or_else(|| Failure::error(codes::NOT_FOUND, "No such model curve.").on(&[id]))?;
         (c.plane_origin, c.plane_normal)
@@ -235,6 +247,7 @@ pub fn change_to_reference_line(m: &mut BimModel, id: ElementId) -> Result<(), F
 
 /// `NewModelCurve` of an arc through three points on the sketch plane.
 pub fn create_model_arc(m: &mut BimModel, cx: &mut TxnContext<'_>, start: V3, end: V3, mid: V3, origin: V3, normal: V3) -> Result<ElementId, Failure> {
+    numbers(&[start, end, mid, origin, normal])?;
     if circle(start, end, mid).is_none() {
         return Err(bad(codes::MODEL_LINE_INVALID, "The three points of an arc are on a line."));
     }
@@ -242,6 +255,12 @@ pub fn create_model_arc(m: &mut BimModel, cx: &mut TxnContext<'_>, start: V3, en
     let id = cx.new_id();
     m.annot.curves.insert(id, ModelCurve { id, geom: CurveGeom::Arc { start, end, mid }, plane_origin: origin, plane_normal: unit(normal), reference_line: false });
     Ok(id)
+}
+
+/// Every coordinate finite and within the engine's numeric limit (`input.invalid_number`).
+fn numbers(points: &[V3]) -> Result<(), Failure> {
+    let flat: Vec<f64> = points.iter().flat_map(|p| p.iter().copied()).collect();
+    crate::ops::require_numbers("The curve", &flat)
 }
 
 fn check_in_plane(points: &[V3], origin: V3, normal: V3) -> Result<(), Failure> {

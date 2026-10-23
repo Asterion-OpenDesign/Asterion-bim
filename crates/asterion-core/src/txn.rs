@@ -23,6 +23,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// cannot be mistaken for each other either).
 static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
 
+/// The code of the failure a transaction carries when an operation panicked (the transaction is rolled back).
+pub const INTERNAL_ERROR: &str = "engine.internal_error";
+
 fn fresh_generation() -> u64 {
     NEXT_GENERATION.fetch_add(1, Ordering::Relaxed)
 }
@@ -160,7 +163,21 @@ impl<M: Clone> Document<M> {
         let mut failures = Vec::new();
         let result = {
             let mut ctx = TxnContext { ids: &mut self.ids, failures: &mut failures };
-            edit(&mut self.model, &mut ctx)
+            // A panic inside an operation (a bug, or an input nobody thought of) must not leave the model half edited and outside the
+            // undo stack: it is a failure of this transaction, which the rollback below undoes (QA: a wall of height 1e-308 panicked in
+            // the middle of its creation; the wall stayed in the model, un-undoable, and every later read of the view panicked too).
+            let model = &mut self.model;
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| edit(model, &mut ctx))) {
+                Ok(r) => r,
+                Err(payload) => {
+                    let text = payload
+                        .downcast_ref::<&str>()
+                        .map(|s| (*s).to_owned())
+                        .or_else(|| payload.downcast_ref::<String>().cloned())
+                        .unwrap_or_else(|| "unknown cause".to_owned());
+                    Err(Failure::error(INTERNAL_ERROR, format!("Internal error, the change was not made: {text}")))
+                }
+            }
         };
         self.generation = fresh_generation();   // the model changed (or is about to be restored below)
         let allocated: Vec<ElementId> = (first_id.0..self.ids.peek().0).map(ElementId).collect();
@@ -247,6 +264,28 @@ mod tests {
         assert_eq!(d.model().len(), 1, "the model is untouched");
         assert!(d.undo_names().is_empty());
         assert!(d.undo().is_err() && d.redo().is_err());
+    }
+
+    /// QA: a panic inside an operation rolls the transaction back (the model is as it was, nothing is pushed on the undo stack) and
+    /// is reported as a failure of the transaction instead of unwinding through the caller with the model half edited.
+    #[test]
+    fn a_panicking_operation_is_rolled_back_and_reported() {
+        let mut d = doc(IdRollbackPolicy::Keep);
+        assert!(add(&mut d, 1, false).committed());
+        let o = d.transact("boom", false, |m, cx| {
+            m.push((cx.new_id(), 2));
+            if m.len() == 2 {
+                panic!("prism height must be positive");
+            }
+            Ok(())
+        });
+        assert_eq!(o.status, TransactionStatus::RolledBack);
+        assert_eq!(o.failures.len(), 1);
+        assert_eq!(o.failures[0].code, INTERNAL_ERROR);
+        assert!(o.failures[0].message.contains("prism height must be positive"), "{}", o.failures[0].message);
+        assert_eq!(d.model().len(), 1, "the half-made change is gone");
+        assert_eq!(d.undo_names(), vec!["add"], "and left no undo step");
+        assert!(add(&mut d, 3, false).committed(), "the document goes on working");
     }
 
     #[test]

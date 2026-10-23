@@ -1,4 +1,4 @@
-//! The vertex set of the body of a STRAIGHT vertical wall (lane I3, step 2 of the differential comparison).
+//! The vertex set of the body of a STRAIGHT vertical wall.
 //!
 //! The comparator reads a solid's vertex list as a sorted distinct set. This module builds that set from what the engine already
 //! decides, without a Boolean kernel:

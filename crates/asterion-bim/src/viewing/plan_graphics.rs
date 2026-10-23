@@ -121,7 +121,11 @@ pub const CIRCLE_SEGMENTS: usize = 32;
 impl Primitive {
     /// Appends the primitive to a `[x0, y0, x1, y1, weight_class]` buffer.
     pub fn flatten(&self, out: &mut Vec<f32>) {
-        let w = self.pen.class();
+        self.flatten_as(out, self.pen.class());
+    }
+
+    /// [`Primitive::flatten`] with the weight class given (a view's graphic overrides change it, `override_style`).
+    pub fn flatten_as(&self, out: &mut Vec<f32>, w: f32) {
         match self.shape {
             Shape::Segment(a, b) => out.extend_from_slice(&[a.x as f32, a.y as f32, b.x as f32, b.y as f32, w]),
             Shape::Circle { centre, radius } => {
@@ -140,9 +144,16 @@ impl Primitive {
 
 /// `[x0, y0, x1, y1, weight_class]` for every primitive, in order.
 pub fn flatten(prims: &[Primitive]) -> Vec<f32> {
+    flatten_styled(prims, None)
+}
+
+/// [`flatten`] with the graphic overrides of the view: a primitive of an element the view overrides takes the weight class
+/// `override_style` encodes (fields; the drawing of them is ENGINE CHOICE).
+pub fn flatten_styled(prims: &[Primitive], styler: Option<&crate::override_style::ViewStyler>) -> Vec<f32> {
     let mut out = Vec::with_capacity(prims.len() * 5 * 2);
     for p in prims {
-        p.flatten(&mut out);
+        let w = p.pen.class();
+        p.flatten_as(&mut out, styler.map_or(w, |s| s.class_for(p.element, w)));
     }
     out
 }
@@ -153,6 +164,14 @@ pub fn flatten(prims: &[Primitive]) -> Vec<f32> {
 /// OBSERVED (live capture of the reference, Coarse detail): the outline of joined walls has no line at the join. ASSUMED as
 /// a rule: the merge is the union of the wall footprints of one appearance class.
 pub fn plan_primitives(model: &BimModel, view: &View, st: &ViewState) -> Vec<Primitive> {
+    plan_primitives_with(model, view, st, crate::override_style::ViewStyler::new(model, view.id).as_ref())
+}
+
+/// [`plan_primitives`] for a view whose graphic overrides are `styler`'s. The joined walls of one appearance class are
+/// merged into one outline per STYLE: walls the view draws differently (a filter or an element override colours some of
+/// them) are not merged with the others, so each outline carries exactly the override of the walls it was made from. A view
+/// with no override merges as it always did.
+pub fn plan_primitives_with(model: &BimModel, view: &View, st: &ViewState, styler: Option<&crate::override_style::ViewStyler>) -> Vec<Primitive> {
     let detail = view.detail_level;
     let scale = st.scale.max(1);
     let mut out: Vec<Primitive> = Vec::new();
@@ -177,20 +196,28 @@ pub fn plan_primitives(model: &BimModel, view: &View, st: &ViewState) -> Vec<Pri
         if walls.is_empty() {
             continue;
         }
-        match merged_outlines(&walls.iter().map(|(_, f)| (*f).clone()).collect::<Vec<_>>()) {
-            Some(loops) => {
-                // the merged outline belongs to no single wall: attributed to the first one of the group
-                let element = walls[0].0;
-                for l in loops {
-                    for i in 0..l.len() {
-                        out.push(Primitive { element, role, pen, shape: Shape::Segment(l[i], l[(i + 1) % l.len()]) });
+        // the walls of one style form a group (every wall is one style when the view overrides nothing)
+        let mut styles: std::collections::BTreeMap<u32, Vec<(ElementId, &Vec<Vec2>)>> = std::collections::BTreeMap::new();
+        for w in &walls {
+            let key = styler.map_or(0, |s| s.class_for(w.0, pen.class()).to_bits());
+            styles.entry(key).or_default().push(*w);
+        }
+        for walls in styles.values() {
+            match merged_outlines(&walls.iter().map(|(_, f)| (*f).clone()).collect::<Vec<_>>()) {
+                Some(loops) => {
+                    // the merged outline belongs to no single wall: attributed to the first one of the group (they all draw the same)
+                    let element = walls[0].0;
+                    for l in loops {
+                        for i in 0..l.len() {
+                            out.push(Primitive { element, role, pen, shape: Shape::Segment(l[i], l[(i + 1) % l.len()]) });
+                        }
                     }
                 }
-            }
-            None => {
-                for (id, f) in &walls {
-                    for i in 0..f.len() {
-                        out.push(Primitive { element: *id, role, pen, shape: Shape::Segment(f[i], f[(i + 1) % f.len()]) });
+                None => {
+                    for (id, f) in walls {
+                        for i in 0..f.len() {
+                            out.push(Primitive { element: *id, role, pen, shape: Shape::Segment(f[i], f[(i + 1) % f.len()]) });
+                        }
                     }
                 }
             }
@@ -235,14 +262,12 @@ pub fn plan_primitives(model: &BimModel, view: &View, st: &ViewState) -> Vec<Pri
     out
 }
 
-/// The outline loops of the union of `polys` (outer loops and holes, as polylines), or `None` when
-/// the kernel cannot build it (the caller then draws every footprint on its own).
-/// The union of `regions`, exactly as `union_all` computes it, run per CONNECTED GROUP: regions whose
-/// boxes (grown by twice the vertex tolerance) overlap, directly or through others, form a group, and a
-/// region of one group can never touch a region of another, so `union_all` would only keep them apart.
-/// Each group keeps its regions in their input order, and the groups' results are ordered the way
-/// `union_all` orders its output, so the result is the same; what it saves is the booleans between a
-/// grown region and the regions of other groups that its box reaches (the plans of a large sample project).
+/// The outline loops of the union of `polys` (outer loops and holes, as polylines), or `None` when the kernel cannot build
+/// it (the caller then draws every footprint on its own). The union of `regions`, exactly as `union_all` computes it, run
+/// per CONNECTED GROUP: regions whose boxes (grown by twice the vertex tolerance) overlap, directly or through others, form
+/// a group, and a region of one group can never touch a region of another, so `union_all` would only keep them apart. Each
+/// group keeps its regions in their input order, and the groups' results are ordered the way `union_all` orders its output,
+/// so the result is the same.
 fn union_by_groups(regions: &[Region], tol: &Tolerances) -> asterion_geom::GeomResult<Vec<Region>> {
     let n = regions.len();
     let pad = 2.0 * tol.vertex + 1e-9;
